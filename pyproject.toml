@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "llm-caching"
+name = "pydanticAI-llm-caching"
 version = "0.1.0"
-description = "Redis-based caching for LLM agents with cost tracking"
+description = "Redis-based caching for Pydantic AI LLM agents with cost tracking"
 authors = ["Andrew de Jonge <talkingtoaj@hotmail.com>"]
 readme = "README.md"
 packages = [{include = "llm_caching", from = "src"}]
