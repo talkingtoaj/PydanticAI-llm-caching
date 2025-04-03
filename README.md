@@ -1,20 +1,27 @@
 # LLM Caching
 
-A Redis-based caching library for LLM agents with cost tracking support.
+A Redis-based caching library for PydanticAI LLM agents with cost tracking support.
 
-[![PyPI version](https://badge.fury.io/py/llm-caching.svg)](https://badge.fury.io/py/llm-caching)
-[![Python Versions](https://img.shields.io/pypi/pyversions/llm-caching.svg)](https://pypi.org/project/llm-caching/)
+Caching responses is particularly useful in testing and development scenarios.
+
+Typically for tests, developers mock LLM results to avoid latency and cost issues. However this can
+result in tests not detecting incorrect schemas for mocked data nor potential changes in LLM response schemas.
+
+A cached response allows us to run the same prompts time and again without the cost or latency while being 
+sure of real-world LLM responses.
+
+Simply use `cached_agent_run` (async) or `cached_agent_run_sync` (sync) as a drop-in replacements for PydanticAI's `agent.run()` and `agent.run_sync()` respectively, to add support for caching, rate-limiting, and cost tracking.
+
+NOTE: while `await agent.run()` returns a result, `await cached_agent_run()` will return result.data (i.e. the response without metadata); to obtain the full result object, use `await cached_agent_run(... , full_result=True)`
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code Coverage](https://codecov.io/gh/yourusername/llm-caching/branch/main/graph/badge.svg)](https://codecov.io/gh/yourusername/llm-caching)
-[![CI](https://github.com/yourusername/llm-caching/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/llm-caching/actions/workflows/ci.yml)
 
 ## Features
 
-- Redis-based caching for LLM responses
+- Redis-based caching for PydanticAI Agent responses
 - Configurable message format conversion
 - Flexible expense tracking
 - Rate limit handling with exponential backoff
-- Support for multiple LLM providers
 - Customizable cost tables for different models
 - Type-safe implementation
 - Comprehensive test coverage
@@ -22,65 +29,47 @@ A Redis-based caching library for LLM agents with cost tracking support.
 ## Installation
 
 ```bash
-# Using Poetry (recommended)
-poetry add llm-caching
-
-# Using pip
-pip install llm-caching
+pip install pyai-caching
 ```
 
 ## Quick Start
 
+Set an Environment variable to point to your redis cache:
+```bash
+export LLM_CACHE_REDIS_URL="redis://localhost:6379/0"
+```
+
 ```python
-from llm_caching import cached_agent_run
+import os
+from pydantic import BaseModel, Field
 from pydantic_ai import Agent
-from pydantic import BaseModel
+from pyai_caching import cached_agent_run
 from typing import List
 
-# Basic usage with defaults
-result = await cached_agent_run(
-    agent=your_agent,
-    prompt="Hello",
-    task_name="chat"
-)
-
-# Using Pydantic models
 class UserProfile(BaseModel):
     name: str
     age: int
     interests: List[str]
 
-# Create a profile
-profile = UserProfile(
-    name="John Doe",
-    age=30,
-    interests=["AI", "Python", "Machine Learning"]
+profiler_agent = Agent(
+    model="anthropic:claude-3-5-haiku-latest", 
+    result_type=UserProfile,
+    name="profiler",
+    system_prompt="You read transcripts and extract pertinent details for a profile record on a person."
 )
-
-# Pass the Pydantic model in message history
-result = await cached_agent_run(
-    agent=your_agent,
-    prompt="Analyze this profile",
-    task_name="profile_analysis",
-    transcript_history=[{"role": "user", "content": profile.model_dump_json()}]
-)
-
-# Advanced usage with custom message conversion and expense tracking
-async def my_expense_recorder(model: str, task_name: str, cost: float) -> None:
-    # Your expense recording logic here
-    print(f"Cost for {model} on {task_name}: ${cost}")
-
-def my_message_converter(messages: list[Any]) -> list[ModelMessage]:
-    # Your message conversion logic here
-    return [ModelMessage(role="user", content=str(m)) for m in messages]
 
 result = await cached_agent_run(
-    agent=your_agent,
-    prompt="Hello",
-    task_name="chat",
-    message_converter=my_message_converter,
-    expense_recorder=my_expense_recorder
+    agent=profiler_agent,
+    transcript_history=[{"role": "user", "content": "Hi, my name is Alex. I'm 30 years old and I enjoy hiking and reading science fiction."}] # Sample user description
+    prompt="Make a profile on the user",
+    task_name="make_profile"
 )
+
+profile = result # Corrected: cached_agent_run returns the data directly
+print(type(profile))
+# <class '__main__.UserProfile'> (or similar based on execution context)
+print(profile)
+# name='Alex' age=30 interests=['hiking', 'reading science fiction']
 ```
 
 ## Configuration
@@ -96,6 +85,7 @@ export LLM_CACHE_REDIS_URL="redis://localhost:6379/0"
 
 2. Direct configuration in code:
 ```python
+# Example using async version
 result = await cached_agent_run(
     agent=your_agent,
     prompt="Hello",
@@ -114,9 +104,6 @@ Supported URL formats:
 The library comes with default cost tables for popular models. You can provide custom costs for your models:
 
 ```python
-from llm_caching import cached_agent_run, ModelCosts
-
-# Define custom costs
 custom_costs = {
     "my-custom-model": ModelCosts(
         cost_per_million_input_tokens=1.0,
@@ -157,7 +144,7 @@ You can provide custom message conversion logic:
 
 ```python
 from typing import Any
-from llm_caching.types import ModelMessage
+from pyai_caching.types import ModelMessage
 
 def custom_message_converter(messages: list[Any]) -> list[ModelMessage]:
     converted = []
@@ -208,10 +195,17 @@ result = await cached_agent_run(
 The library provides specific exceptions for different error cases:
 
 ```python
-from llm_caching.exceptions import (
-    ConfigurationError,
-    RateLimitError,
-    CacheError
+import os
+from dotenv import load_dotenv
+from pydantic import BaseModel, Field
+from pydantic_ai import Agent
+# Import caching functions and ModelCosts
+from pyai_caching import cached_agent_run, cached_agent_run_sync, ModelCosts
+# Import specific exceptions
+from pyai_caching.exceptions import (
+    RateLimitError, 
+    CacheError, 
+    ConfigurationError
 )
 
 try:

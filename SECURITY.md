@@ -53,4 +53,4 @@ We will:
 
 For security-related issues, please contact:
 - Email: talkingtoaj@hotmail.com
-- GitHub Issues: [Create a security issue](https://github.com/talkingtoaj/llm-caching/security/advisories) 
+- GitHub Issues: [Create a security issue](https://github.com/talkingtoaj/pyai-caching/security/advisories) 

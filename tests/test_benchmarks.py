@@ -5,7 +5,8 @@ import time
 import asyncio
 import pytest
 from unittest.mock import AsyncMock
-from llm_caching import cached_agent_run, ModelCosts
+from typing import Dict
+from pyai_caching import cached_agent_run, ModelCosts
 from conftest import Agent, MockUsage, MockResult
 
 # Test configurations

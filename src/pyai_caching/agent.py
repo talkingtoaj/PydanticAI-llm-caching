@@ -59,6 +59,7 @@ async def cached_agent_run(
     expense_recorder: ExpenseRecorder = noop_expense_recorder,
     redis_url: Optional[str] = None,
     custom_costs: Optional[Dict[str, ModelCosts]] = None,
+    full_result: bool = False,
     **kwargs: Any
 ) -> Any:
     """
@@ -76,10 +77,11 @@ async def cached_agent_run(
         expense_recorder: Function to record expenses
         redis_url: Optional Redis URL (defaults to LLM_CACHE_REDIS_URL env var)
         custom_costs: Optional dictionary of custom costs per model
+        full_result: Whether to return the full result object (default False)
         **kwargs: Additional arguments for agent.run
         
     Returns:
-        result data
+        result.data if full_result is False, otherwise result
         
     Raises:
         UsageLimitExceeded: If rate limits are hit and max_wait is exceeded
@@ -99,14 +101,20 @@ async def cached_agent_run(
     
     # Try to get from cache
     cache_key = create_cache_key(agent, prompt, **kwargs)
-    cached_result = redis_client.get(cache_key)
+    cached_result = None # Initialize to None
+    try:
+        cached_result = redis_client.get(cache_key)
+    except Exception as e:
+        log.warning(f"Error getting cache key '{cache_key}' from Redis: {e}")
+        # Treat as cache miss, proceed to agent run
+        
     if cached_result:
         log.info(f"Cache hit for key: {cache_key}")
         try:
             result = pickle.loads(bytes(cached_result))
             # Use model_name for expense recorder on cache hit
             await expense_recorder(model_name, task_name, 0)  # Cache hits are free
-            return result.data
+            return result.data if full_result is False else result
         except Exception as e:
             log.warning(f"Error unpickling cached result: {e}")
 
@@ -122,14 +130,10 @@ async def cached_agent_run(
         try:
             result = await agent.run(prompt, message_history=message_history)
             # Calculate cost from usage data
-            # --- DEBUG PRINT ---
-            print(f"DEBUG calculate_cost - model_name: {model_name}, type: {type(model_name)}")
-            print(f"DEBUG calculate_cost - custom_costs keys: {custom_costs.keys() if custom_costs else 'None'}")
-            # -------------------
             cost = calculate_cost(model_name, result, custom_costs)
             await expense_recorder(model_name, task_name, cost)
             redis_client.set(cache_key, pickle.dumps(result), ex=ttl)
-            return result.data
+            return result.data if full_result is False else result
 
         except UsageLimitExceeded as e:
             last_error = e
@@ -145,4 +149,32 @@ async def cached_agent_run(
     log.error(f"Rate limit retries exhausted after {max_wait} seconds")
     if last_error:
         raise last_error
-    raise RuntimeError(f"Rate limit retries exhausted after {max_wait} seconds") 
+    raise RuntimeError(f"Rate limit retries exhausted after {max_wait} seconds")
+
+def cached_agent_run_sync(
+    agent: Agent[Any, Any],
+    prompt: str,
+    task_name: str,
+    *args: Any,
+    **kwargs: Any
+) -> Any:
+    """
+    Synchronous version of cached_agent_run.
+
+    Runs an agent with Redis caching and rate limit handling using asyncio.run().
+    Accepts the same arguments as cached_agent_run.
+
+    Args:
+        agent: The PydanticAI agent to run
+        prompt: The prompt to send
+        task_name: Name of the task for expense tracking
+        *args: Positional arguments passed to cached_agent_run
+        **kwargs: Keyword arguments passed to cached_agent_run
+
+    Returns:
+        result data
+
+    Raises:
+        Exceptions from cached_agent_run
+    """
+    return asyncio.run(cached_agent_run(agent, prompt, task_name, *args, **kwargs)) 

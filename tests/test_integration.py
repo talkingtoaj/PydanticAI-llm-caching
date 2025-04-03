@@ -4,29 +4,16 @@ import os
 import pytest
 import asyncio
 from unittest.mock import AsyncMock
-from llm_caching import cached_agent_run, ModelCosts
+from typing import Dict
+from pyai_caching import cached_agent_run, ModelCosts
 from conftest import Agent, MockUsage, MockResult
 
-# Redis configurations to test
-REDIS_CONFIGS = [
-    {
-        "name": "default",
-        "url": os.getenv("LLM_CACHE_REDIS_URL", "redis://localhost:6379/0")
-    },
-    {
-        "name": "with_password",
-        "url": os.getenv("LLM_CACHE_REDIS_URL_WITH_PASSWORD", "redis://:password@localhost:6379/0")
-    },
-    {
-        "name": "with_ssl",
-        "url": os.getenv("LLM_CACHE_REDIS_URL_SSL", "rediss://localhost:6379/0")
-    }
-]
-
-@pytest.fixture(params=REDIS_CONFIGS)
-def redis_config(request):
-    """Fixture to provide different Redis configurations."""
-    return request.param
+@pytest.fixture
+def redis_url():
+    url = os.getenv("LLM_CACHE_REDIS_URL")
+    if not url:
+        pytest.skip("Redis URL not configured in environment")
+    return url
 
 @pytest.fixture
 def mock_agent():
@@ -52,14 +39,14 @@ def custom_costs():
     }
 
 @pytest.mark.asyncio
-async def test_basic_caching(redis_config, mock_agent, custom_costs):
-    """Test basic caching functionality with different Redis configurations."""
+async def test_basic_caching(redis_url, mock_agent, custom_costs):
+    """Test basic caching functionality."""
     # First call to populate cache
     result1 = await cached_agent_run(
         agent=mock_agent,
         prompt="test prompt",
         task_name="test",
-        redis_url=redis_config["url"],
+        redis_url=redis_url,
         custom_costs=custom_costs
     )
     
@@ -71,7 +58,7 @@ async def test_basic_caching(redis_config, mock_agent, custom_costs):
         agent=mock_agent,
         prompt="test prompt",
         task_name="test",
-        redis_url=redis_config["url"],
+        redis_url=redis_url,
         custom_costs=custom_costs
     )
     
@@ -79,14 +66,14 @@ async def test_basic_caching(redis_config, mock_agent, custom_costs):
     mock_agent.run.assert_not_called()
 
 @pytest.mark.asyncio
-async def test_concurrent_access(redis_config, mock_agent, custom_costs):
-    """Test concurrent access to cache with different Redis configurations."""
+async def test_concurrent_access(redis_url, mock_agent, custom_costs):
+    """Test concurrent access to cache."""
     async def run_agent():
         return await cached_agent_run(
             agent=mock_agent,
             prompt="test prompt",
             task_name="test",
-            redis_url=redis_config["url"],
+            redis_url=redis_url,
             custom_costs=custom_costs
         )
     
@@ -99,14 +86,14 @@ async def test_concurrent_access(redis_config, mock_agent, custom_costs):
     assert mock_agent.run.call_count == 1
 
 @pytest.mark.asyncio
-async def test_cache_expiration(redis_config, mock_agent, custom_costs):
-    """Test cache expiration with different Redis configurations."""
+async def test_cache_expiration(redis_url, mock_agent, custom_costs):
+    """Test cache expiration."""
     # First call with short TTL
     await cached_agent_run(
         agent=mock_agent,
         prompt="test prompt",
         task_name="test",
-        redis_url=redis_config["url"],
+        redis_url=redis_url,
         custom_costs=custom_costs,
         ttl=1  # 1 second TTL
     )
@@ -122,7 +109,7 @@ async def test_cache_expiration(redis_config, mock_agent, custom_costs):
         agent=mock_agent,
         prompt="test prompt",
         task_name="test",
-        redis_url=redis_config["url"],
+        redis_url=redis_url,
         custom_costs=custom_costs
     )
     

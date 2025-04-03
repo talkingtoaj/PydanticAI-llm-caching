@@ -1,4 +1,4 @@
-"""Exceptions for the llm_caching package."""
+"""Exceptions for the pyai-caching package."""
 
 class RateLimitError(Exception):
     """Raised when a rate limit is hit."""

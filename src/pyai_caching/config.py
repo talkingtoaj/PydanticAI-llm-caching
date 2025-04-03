@@ -1,4 +1,4 @@
-"""Configuration settings for llm-caching."""
+"""Configuration settings for pyai-caching."""
 
 import os
 from typing import Optional

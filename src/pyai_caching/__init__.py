@@ -11,6 +11,7 @@ from .exceptions import RateLimitError, CacheError
 __version__ = "0.1.0"
 __all__ = [
     "cached_agent_run",
+    "cached_agent_run_sync",
     "MessageConverter",
     "ExpenseRecorder",
     "ModelCosts",

@@ -2,9 +2,10 @@
 
 import os
 import pytest
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 from pydantic_ai import Agent
-from llm_caching import cached_agent_run, ModelCosts
+from pydantic import BaseModel, Field
+from pyai_caching import cached_agent_run, ModelCosts
 
 # Load environment variables from .env
 load_dotenv()
