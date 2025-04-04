@@ -4,11 +4,8 @@ version = "0.1.1"
 description = "Redis-based caching for Pydantic AI LLM agents with cost tracking"
 authors = ["Andrew de Jonge <talkingtoaj@hotmail.com>"]
 readme = "README.md"
-packages = [
-    {include = "pyai_caching", from = "src"},
-    {include = "pyai_caching/**/*.pyi", from = "src"},
-    {include = "pyai_caching/py.typed", from = "src"}
-]
+packages = [{include = "pyai_caching", from = "src"}]
+include = ["src/pyai_caching/py.typed", "src/pyai_caching/*.pyi"]
 license = "MIT"
 keywords = ["llm", "caching", "redis", "ai", "cost-tracking"]
 classifiers = [
@@ -23,7 +20,7 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
 redis = "^5.0.1"
 pydantic = "^2.6.1"
 typing-extensions = "^4.9.0"
