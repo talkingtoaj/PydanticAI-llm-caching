@@ -4,8 +4,19 @@ Publish to PyPI: If the push was a tag starting with v, the publish-to-pypi job 
 
 
 To test the PyPI publishing and release creation, you'll need to:
-Update the version in pyproject.toml (e.g., to 0.1.1 or 1.0.0).
-Commit the change.
-Create a git tag matching the version (e.g., git tag v0.1.1).
-Push the tag to GitHub (git push origin v0.1.1).
 Approve the deployment to the pypi environment in the GitHub Actions run.
+
+
+
+
+To push a new:
+- [ ] Update the version in pyproject.toml (e.g., to 0.1.1 or 1.0.0).
+- [ ] Commit the change.
+`git commit -m "Bump version to 0.1.1"`
+`git push origin main`
+
+- [ ] Create a git tag matching the version (e.g., git tag v0.1.1).
+`git tag v0.1.1`
+`git push origin v0.1.1`
+
+= [ ] Push the tag to GitHub (git push origin v0.1.1).
