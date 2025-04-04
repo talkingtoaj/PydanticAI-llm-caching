@@ -47,6 +47,7 @@ jobs:
     - name: Run tests with pytest
       env:
         LLM_CACHE_REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       run: poetry run pytest tests/
 
   publish:
