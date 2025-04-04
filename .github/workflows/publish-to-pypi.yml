@@ -64,6 +64,14 @@ jobs:
       with:
         python-version: "3.9" 
 
+    - name: Clean previous build artifacts
+      run: |
+        rm -rf dist/
+        rm -rf build/
+        # Remove potentially problematic .egg-info directories from src
+        # Adjust path if they might appear elsewhere
+        rm -rf src/*.egg-info/ 
+
     - name: Install pypa/build
       run: >-
         python -m
