@@ -1,27 +1,68 @@
-name: Publish Python 🐍 distribution 📦 to PyPI and TestPyPI
+name: Test, Build, and Publish
 
-# Run on every push to main, and specifically when a tag is pushed
 on:
   push:
-    branches:
-      - main  # Or your default branch name
-    tags:
-      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request: # Add trigger for pull requests
+    branches: [ main ]
 
 jobs:
-  build:
-    name: Build distribution 📦
+  test:
+    name: Run Tests on Python 3.11
     runs-on: ubuntu-latest
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install Poetry
+      uses: snok/install-poetry@v1
+      with:
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+
+    - name: Load cached venv
+      id: cached-poetry-dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-3.11-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          venv-${{ runner.os }}-3.11-
+
+    - name: Install dependencies
+      if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+      run: poetry install --no-interaction --no-root
+
+    - name: Install project
+      run: poetry install --no-interaction
+
+    - name: Run tests with pytest
+      env:
+        LLM_CACHE_REDIS_URL: ${{ secrets.TEST_REDIS_URL }}
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      run: poetry run pytest tests/
+
+  build:
+    name: Build distribution 📦
+    needs: test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0 # Needed for fetch-tags if used with on: push: tags
-        persist-credentials: false # Needed for Sigstore signing
+        fetch-depth: 0 
+        persist-credentials: false 
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: "3.9" # Match your minimum supported version
+        python-version: "3.9" 
 
     - name: Install pypa/build
       run: >-
@@ -40,13 +81,12 @@ jobs:
   publish-to-testpypi:
     name: Publish Python 🐍 distribution 📦 to TestPyPI
     needs: build
-    # Always publish to TestPyPI on pushes to main branch
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' 
     runs-on: ubuntu-latest
 
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/pyai-caching # Set the package name here
+      url: https://test.pypi.org/p/pyai-caching 
 
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
@@ -57,6 +97,7 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
+        
     - name: Publish distribution 📦 to TestPyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
@@ -65,16 +106,15 @@ jobs:
   publish-to-pypi:
     name: Publish Python 🐍 distribution 📦 to PyPI
     needs: build
-    # Only publish to PyPI on tag pushes
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
     environment: # we set this in github, under settings/environments, it allows us to set the environment variables for the environment
       name: pypi
-      url: https://pypi.org/p/pyai-caching # Set the package name here
+      url: https://pypi.org/p/pyai-caching 
 
     permissions:
-      id-token: write  # IMPORTANT: mandatory for trusted publishing
+      id-token: write
 
     steps:
     - name: Download all the dists
@@ -90,6 +130,8 @@ jobs:
       Sign the Python 🐍 distribution 📦 with Sigstore
       and upload them to GitHub Release
     needs: publish-to-pypi # Run after publishing to PyPI
+    # Only create release on tag pushes starting with 'v'
+    if: startsWith(github.ref, 'refs/tags/v') 
     runs-on: ubuntu-latest
 
     permissions:
@@ -115,14 +157,11 @@ jobs:
         gh release create
         "$GITHUB_REF_NAME"
         --repo "$GITHUB_REPOSITORY"
-        --generate-notes # Automatically generate release notes from commits
+        --generate-notes 
     - name: Upload artifact signatures to GitHub Release
       env:
         GITHUB_TOKEN: ${{ github.token }}
-      # Upload to GitHub Release using the `gh` CLI.
-      # `dist/` contains the built packages, and the
-      # sigstore-produced signatures and certificates.
       run: >-
         gh release upload
         "$GITHUB_REF_NAME" dist/**
-        --repo "$GITHUB_REPOSITORY" --clobber # Use --clobber to overwrite existing assets 
+        --repo "$GITHUB_REPOSITORY" --clobber 
