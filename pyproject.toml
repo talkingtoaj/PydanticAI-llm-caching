@@ -23,7 +23,7 @@ python = "^3.9"
 redis = "^5.0.1"
 pydantic = "^2.6.1"
 typing-extensions = "^4.9.0"
-pydantic-ai = "^0.1.0"
+pydantic-ai = "^0.0.50"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
