@@ -13,10 +13,11 @@ To push a new:
 - [ ] Update the version in pyproject.toml (e.g., to 0.1.1 or 1.0.0).
 - [ ] Commit the change.
 `git commit -m "Bump version to 0.1.1"`
-`git push origin main`
+`git push main`
 
 - [ ] Create a git tag matching the version (e.g., git tag v0.1.1).
 `git tag v0.1.1`
 `git push origin v0.1.1`
 
-= [ ] Push the tag to GitHub (git push origin v0.1.1).
+- [ ] Push the tag to GitHub (git push origin v0.1.1).
+- [ ] Sign the release on GitHub actions
