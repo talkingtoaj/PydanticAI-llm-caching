@@ -255,3 +255,40 @@ def test_cached_agent_run_sync_basic(test_agent: Agent, mock_expense_recorder: A
     assert 0 <= result.confidence <= 1
     # Check that the async expense recorder was eventually called
     mock_expense_recorder.assert_called_once_with(MODEL_NAME, "sync_test", ANY)
+
+@pytest.mark.asyncio
+async def test_cache_key_with_different_output_models(test_agent: Agent, mock_expense_recorder: AsyncMock, custom_costs, redis_url):
+    """Test that different output models with the same name generate different cache keys."""
+    from pyai_caching.agent import create_cache_key
+    
+    def create_agent_with_model1():
+        class OutputModel(BaseModel):
+            field1: str
+            field2: int
+        return Agent(test_agent.model, result_type=OutputModel)
+    
+    def create_agent_with_model2():
+        class OutputModel(BaseModel):
+            field1: str
+            field3: float  # Different field name and type
+        return Agent(test_agent.model, result_type=OutputModel)
+    
+    # Create agents in separate scopes
+    agent1 = create_agent_with_model1()
+    agent2 = create_agent_with_model2()
+    
+    # Same prompt for both agents
+    prompt = "Test prompt"
+    
+    # Generate cache keys
+    key1 = create_cache_key(agent1, prompt)
+    key2 = create_cache_key(agent2, prompt)
+    
+    # Keys should be different due to different output model schemas
+    assert key1 != key2, "Cache keys should be different for different output model schemas"
+    
+    # Verify the schema is included in the key
+    assert "field2" in key1, "First model's schema should be in key1"
+    assert "field3" in key2, "Second model's schema should be in key2"
+    assert "field2" not in key2, "First model's schema should not be in key2"
+    assert "field3" not in key1, "Second model's schema should not be in key1"

@@ -28,7 +28,7 @@ def _get_model_name(agent: Agent[Any, Any]) -> str:
     return "unknown"
 
 def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
-    """Create a cache key from the agent and prompt."""
+    """Create a cache key from the agent, prompt, and output model schema."""
     # Include relevant kwargs in the cache key if they affect the response
     key_parts = [
         str(agent),
@@ -43,6 +43,16 @@ def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
             for msg in kwargs["transcript_history"]
         )
         key_parts.append(history_str)
+    
+    # Include output model schema in cache key
+    if hasattr(agent, 'result_type') and agent.result_type:
+        try:
+            schema = agent.result_type.model_json_schema()
+            # Convert schema to a stable string representation
+            schema_str = str(sorted(schema.items()))
+            key_parts.append(schema_str)
+        except Exception as e:
+            log.warning(f"Failed to get output model schema: {e}")
     
     return "|".join(key_parts)
 
