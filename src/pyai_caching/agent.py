@@ -6,17 +6,23 @@ from typing import Any, Optional, Dict
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
 import logging
-from .types import MessageConverter, ExpenseRecorder, default_message_converter, noop_expense_recorder
+from .types import ExpenseRecorder, noop_expense_recorder
 from .config import get_redis_client
 from .costs import ModelCosts, calculate_cost
 
 log = logging.getLogger(__name__)
 
-# Default TTL
-DEFAULT_TTL = 3600 * 24 * 15  # 15 days
+# Default TTL for cached responses (15 days)
+DEFAULT_TTL = 3600 * 24 * 15
 
 def _get_model_name(agent: Agent[Any, Any]) -> str:
-    """Helper to get the model name from an agent."""
+    """Helper to get the model name from an agent.
+    
+    This function handles different ways the model name might be stored in the agent:
+    1. Direct string in agent.model
+    2. Model object with model_name attribute
+    3. Model class name as fallback
+    """
     if hasattr(agent, 'model') and agent.model:
         model_obj = agent.model
         if isinstance(model_obj, str):
@@ -28,7 +34,21 @@ def _get_model_name(agent: Agent[Any, Any]) -> str:
     return "unknown"
 
 def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
-    """Create a cache key from the agent, prompt, and output model schema."""
+    """Create a cache key from the agent, prompt, and output model schema.
+    
+    The cache key incorporates the agent configuration, prompt text, message history (if present),
+    and output model schema to ensure unique caching per conversation context.
+    
+    Args:
+        agent: The PydanticAI agent to run
+        prompt: The prompt to send
+        **kwargs: Additional arguments, with special handling for:
+                 - message_history: List of messages providing conversation context.
+                   Each message's string representation is included in the cache key.
+        
+    Returns:
+        str: A unique cache key incorporating all elements that could affect the response
+    """
     # Include relevant kwargs in the cache key if they affect the response
     key_parts = [
         str(agent),
@@ -36,12 +56,9 @@ def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
     ]
     
     # Include message history in cache key if present
-    if "transcript_history" in kwargs and kwargs["transcript_history"]:
+    if "message_history" in kwargs and kwargs["message_history"]:
         # Convert message history to a string representation
-        history_str = "|".join(
-            msg.get("content", "") if isinstance(msg, dict) else str(msg)
-            for msg in kwargs["transcript_history"]
-        )
+        history_str = "|".join(str(msg) for msg in kwargs["message_history"])
         key_parts.append(history_str)
     
     # Include output model schema in cache key
@@ -62,41 +79,45 @@ async def cached_agent_run(
     task_name: str,
     *,
     ttl: int = DEFAULT_TTL,
-    transcript_history: Optional[list[Any]] = None,
     max_wait: float = 10.0,
     initial_wait: float = 1.0,
-    message_converter: MessageConverter = default_message_converter,
     expense_recorder: ExpenseRecorder = noop_expense_recorder,
     redis_url: Optional[str] = None,
     custom_costs: Optional[Dict[str, ModelCosts]] = None,
-    full_result: bool = False,
     **kwargs: Any
 ) -> Any:
-    """
-    Run an agent with Redis caching and rate limit handling.
+    """Run an agent with Redis caching and rate limit handling.
+    
+    This function runs a PydanticAI agent with caching support. If a cached result exists
+    and hasn't expired, it will be returned. Otherwise, the agent will be run and the
+    result cached for future use. The function always returns the complete result object
+    from the agent run.
     
     Args:
         agent: The PydanticAI agent to run
         prompt: The prompt to send
         task_name: Name of the task for expense tracking
-        ttl: Cache TTL in seconds
-        transcript_history: Optional message history
-        max_wait: Maximum wait time before giving up (default 10s)
-        initial_wait: Initial wait time for exponential backoff (default 1s)
-        message_converter: Function to convert messages to ModelMessage format
-        expense_recorder: Function to record expenses
+        ttl: Cache TTL in seconds (default: 15 days)
+        max_wait: Maximum wait time before giving up on rate limits (default: 10s)
+        initial_wait: Initial wait time for exponential backoff (default: 1s)
+        expense_recorder: Function to record expenses (default: noop)
         redis_url: Optional Redis URL (defaults to LLM_CACHE_REDIS_URL env var)
         custom_costs: Optional dictionary of custom costs per model
-        full_result: Whether to return the full result object (default False)
-        **kwargs: Additional arguments for agent.run
+        **kwargs: Additional arguments passed directly to agent.run, including:
+                 - message_history: List of messages providing conversation context
+                 - model_settings: Dict of model-specific settings
+                 Any other kwargs are passed directly to agent.run
         
     Returns:
-        result.data if full_result is False, otherwise result
+        The complete agent run result object containing:
+        - data: The typed response data
+        - usage: Token usage information
+        - metadata: Any additional model-specific metadata
         
     Raises:
         UsageLimitExceeded: If rate limits are hit and max_wait is exceeded
         ConfigurationError: If Redis URL is not configured
-        ValueError: If model costs are not found
+        ValueError: If model costs are not found or prompt is empty
     """
     # --- Input Validation ---
     if not prompt:
@@ -105,6 +126,7 @@ async def cached_agent_run(
 
     # Get Redis client
     redis_client = get_redis_client(redis_url)
+    log.debug(f"Using Redis client with TTL: {ttl} seconds")
     
     # Determine model name using the helper function
     model_name = _get_model_name(agent)
@@ -114,17 +136,20 @@ async def cached_agent_run(
     cached_result = None # Initialize to None
     try:
         cached_result = redis_client.get(cache_key)
+        if cached_result:
+            log.debug(f"Cache hit for key: {cache_key}")
+        else:
+            log.debug(f"Cache miss for key: {cache_key}")
     except Exception as e:
         log.warning(f"Error getting cache key '{cache_key}' from Redis: {e}")
         # Treat as cache miss, proceed to agent run
         
     if cached_result:
-        log.info(f"Cache hit for key: {cache_key}")
         try:
             result = pickle.loads(bytes(cached_result))
             # Use model_name for expense recorder on cache hit
             await expense_recorder(model_name, task_name, 0)  # Cache hits are free
-            return result.data if full_result is False else result
+            return result
         except Exception as e:
             log.warning(f"Error unpickling cached result: {e}")
 
@@ -133,17 +158,15 @@ async def cached_agent_run(
     wait_time = initial_wait
     last_error = None
 
-    # Convert message history if provided
-    message_history = message_converter(transcript_history) if transcript_history else None
-
     while wait_time <= max_wait:
         try:
-            result = await agent.run(prompt, message_history=message_history)
+            result = await agent.run(prompt, **kwargs)
             # Calculate cost from usage data
             cost = calculate_cost(model_name, result, custom_costs)
             await expense_recorder(model_name, task_name, cost)
+            log.debug(f"Setting cache with TTL: {ttl} seconds")
             redis_client.set(cache_key, pickle.dumps(result), ex=ttl)
-            return result.data if full_result is False else result
+            return result
 
         except UsageLimitExceeded as e:
             last_error = e
@@ -168,23 +191,37 @@ def cached_agent_run_sync(
     *args: Any,
     **kwargs: Any
 ) -> Any:
-    """
-    Synchronous version of cached_agent_run.
+    """Synchronous version of cached_agent_run.
 
-    Runs an agent with Redis caching and rate limit handling using asyncio.run().
-    Accepts the same arguments as cached_agent_run.
-
+    This is a convenience wrapper that runs cached_agent_run in a new event loop.
+    It accepts the same arguments and provides the same functionality, always returning
+    the complete result object from the agent run.
+    
     Args:
         agent: The PydanticAI agent to run
         prompt: The prompt to send
         task_name: Name of the task for expense tracking
-        *args: Positional arguments passed to cached_agent_run
-        **kwargs: Keyword arguments passed to cached_agent_run
-
+        *args: Additional positional arguments passed to cached_agent_run
+        **kwargs: Additional keyword arguments passed to cached_agent_run, including:
+                 - message_history: List of messages providing conversation context
+                 - model_settings: Dict of model-specific settings
+                 - ttl: Cache TTL in seconds (default: 15 days)
+                 - max_wait: Maximum wait time for rate limits (default: 10s)
+                 - initial_wait: Initial wait time for backoff (default: 1s)
+                 - expense_recorder: Function to record expenses (default: noop)
+                 - redis_url: Optional Redis URL
+                 - custom_costs: Optional dictionary of custom costs per model
+                 Any other kwargs are passed directly to agent.run
+    
     Returns:
-        result data
-
+        The complete agent run result object containing:
+        - data: The typed response data
+        - usage: Token usage information
+        - metadata: Any additional model-specific metadata
+        
     Raises:
-        Exceptions from cached_agent_run
+        UsageLimitExceeded: If rate limits are hit and max_wait is exceeded
+        ConfigurationError: If Redis URL is not configured
+        ValueError: If model costs are not found or prompt is empty
     """
     return asyncio.run(cached_agent_run(agent, prompt, task_name, *args, **kwargs)) 

@@ -6,3 +6,4 @@ tests/__pycache__/*
 dist/
 build/
 *.egg-info/
+*.pyc

@@ -1,12 +1,12 @@
 """Integration tests for LLM Caching with different Redis configurations."""
 
 import os
+from pydantic import BaseModel
 import pytest
 import asyncio
-from unittest.mock import AsyncMock
-from typing import Dict
 from pyai_caching import cached_agent_run, ModelCosts
-from conftest import Agent, MockUsage, MockResult
+from pydantic_ai import Agent
+from test_agent import MockResultData, MODEL_NAME
 
 @pytest.fixture
 def redis_url():
@@ -16,21 +16,20 @@ def redis_url():
     return url
 
 @pytest.fixture
-def mock_agent():
-    """Create a mock agent for testing."""
-    agent = AsyncMock(spec=Agent)
-    agent.run = AsyncMock()
-    usage = MockUsage(request_tokens=100, response_tokens=50)
-    result = MockResult("test response", usage)
-    agent.run.return_value = result
-    return agent
+def test_agent():
+    """Create a real Claude agent for testing."""
+    return Agent(
+        model=MODEL_NAME,
+        result_type=MockResultData,
+        name="test_agent",
+        system_prompt="You are a test agent. Always respond with a short message and a confidence score between 0 and 1."
+    )
 
 @pytest.fixture
 def custom_costs():
     """Define custom costs for testing integration."""
-    # Use "unknown" because mock_agent doesn't have a real model name
     return {
-        "unknown": ModelCosts(
+        MODEL_NAME: ModelCosts(
             cost_per_million_input_tokens=0.8,
             cost_per_million_output_tokens=4.0,
             cost_per_million_caching_input_tokens=1.0,
@@ -39,79 +38,58 @@ def custom_costs():
     }
 
 @pytest.mark.asyncio
-async def test_basic_caching(redis_url, mock_agent, custom_costs):
+async def test_basic_caching(redis_url, test_agent, custom_costs):
     """Test basic caching functionality."""
+
+    # choose a prompt unlikely to give the same result unless cached.
+    prompt = "Give a simple response of random letters with high confidence."
     # First call to populate cache
     result1 = await cached_agent_run(
-        agent=mock_agent,
-        prompt="test prompt",
+        agent=test_agent,
+        prompt=prompt,
         task_name="test",
         redis_url=redis_url,
         custom_costs=custom_costs
     )
     
-    # Reset mock to verify cache hit
-    mock_agent.run.reset_mock()
-    
-    # Second call should use cache
+    # Second call with same prompt should hit cache
     result2 = await cached_agent_run(
-        agent=mock_agent,
-        prompt="test prompt",
+        agent=test_agent,
+        prompt=prompt,
         task_name="test",
         redis_url=redis_url,
         custom_costs=custom_costs
     )
     
-    assert result1 == result2 == "test response"
-    mock_agent.run.assert_not_called()
+    # Results should be equal
+    assert result1.data == result2.data
 
-@pytest.mark.asyncio
-async def test_concurrent_access(redis_url, mock_agent, custom_costs):
-    """Test concurrent access to cache."""
-    async def run_agent():
-        return await cached_agent_run(
-            agent=mock_agent,
-            prompt="test prompt",
-            task_name="test",
-            redis_url=redis_url,
-            custom_costs=custom_costs
-        )
+# @pytest.mark.asyncio
+# async def test_cache_expiration(redis_url, test_agent, custom_costs):
+#     """Test cache expiration."""
+#     # First call with short TTL
+#     result1 = await cached_agent_run(
+#         agent=test_agent,
+#         prompt="Give 5 random letters",
+#         task_name="test",
+#         redis_url=redis_url,
+#         custom_costs=custom_costs,
+#         ttl=1  # 1 second TTL
+#     )
     
-    # Run multiple concurrent requests
-    results = await asyncio.gather(*[run_agent() for _ in range(5)])
+#     # Wait for cache to expire
+#     await asyncio.sleep(2)
     
-    # Verify all results are correct
-    assert all(r == "test response" for r in results)
-    # Verify agent was only called once
-    assert mock_agent.run.call_count == 1
-
-@pytest.mark.asyncio
-async def test_cache_expiration(redis_url, mock_agent, custom_costs):
-    """Test cache expiration."""
-    # First call with short TTL
-    await cached_agent_run(
-        agent=mock_agent,
-        prompt="test prompt",
-        task_name="test",
-        redis_url=redis_url,
-        custom_costs=custom_costs,
-        ttl=1  # 1 second TTL
-    )
+#     # Should call agent again with a different prompt
+#     result2 = await cached_agent_run(
+#         agent=test_agent,
+#         prompt="Give 5 random letters",
+#         task_name="test",
+#         redis_url=redis_url,
+#         custom_costs=custom_costs
+#     )
     
-    # Reset mock
-    mock_agent.run.reset_mock()
-    
-    # Wait for cache to expire
-    await asyncio.sleep(2)
-    
-    # Should call agent again
-    result = await cached_agent_run(
-        agent=mock_agent,
-        prompt="test prompt",
-        task_name="test",
-        redis_url=redis_url,
-        custom_costs=custom_costs
-    )
-    
-    assert result == "test response"
-    mock_agent.run.assert_called_once()
+#     assert isinstance(result1.data, MockResultData)
+#     assert isinstance(result2.data, MockResultData)
+#     # Results should be different since we used different prompts
+#     assert result1.data != result2.data

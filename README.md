@@ -12,14 +12,13 @@ sure of real-world LLM responses.
 
 Simply use `cached_agent_run` (async) or `cached_agent_run_sync` (sync) as a drop-in replacements for PydanticAI's `agent.run()` and `agent.run_sync()` respectively, to add support for caching, rate-limiting, and cost tracking.
 
-NOTE: while `await agent.run()` returns a result, `await cached_agent_run()` will return result.data (i.e. the response without metadata); to obtain the full result object, use `await cached_agent_run(... , full_result=True)`
+NOTE: `cached_agent_run` and `cached_agent_run_sync` always return the complete result object, including data, usage information, and metadata.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
 
 - Redis-based caching for PydanticAI Agent responses
-- Configurable message format conversion
 - Flexible expense tracking
 - Rate limit handling with exponential backoff
 - Customizable cost tables for different models
@@ -58,18 +57,28 @@ profiler_agent = Agent(
     system_prompt="You read transcripts and extract pertinent details for a profile record on a person."
 )
 
+# The function returns the complete result object
 result = await cached_agent_run(
     agent=profiler_agent,
-    transcript_history=[{"role": "user", "content": "Hi, my name is Alex. I'm 30 years old and I enjoy hiking and reading science fiction."}] # Sample user description
     prompt="Make a profile on the user",
-    task_name="make_profile"
+    task_name="make_profile",
+    message_history=[{
+        "role": "user", 
+        "content": "Hi, my name is Alex. I'm 30 years old and I enjoy hiking and reading science fiction."
+    }]
 )
 
-profile = result # Corrected: cached_agent_run returns the data directly
+# Access the typed data from the result
+profile = result.data
 print(type(profile))
 # <class '__main__.UserProfile'> (or similar based on execution context)
 print(profile)
 # name='Alex' age=30 interests=['hiking', 'reading science fiction']
+
+# Access metadata from the result object
+print(result.model)  # The model used
+print(result.usage)  # Token usage information
+print(result.cost)   # The cost of the request
 ```
 
 ## Configuration
@@ -138,37 +147,6 @@ result = await cached_agent_run(
 )
 ```
 
-### Custom Message Conversion
-
-You can provide custom message conversion logic:
-
-```python
-from typing import Any
-from pyai_caching.types import ModelMessage
-
-def custom_message_converter(messages: list[Any]) -> list[ModelMessage]:
-    converted = []
-    for msg in messages:
-        if isinstance(msg, dict):
-            converted.append(ModelMessage(
-                role=msg.get("role", "user"),
-                content=str(msg.get("content", ""))
-            ))
-        else:
-            converted.append(ModelMessage(
-                role="user",
-                content=str(msg)
-            ))
-    return converted
-
-result = await cached_agent_run(
-    agent=your_agent,
-    prompt="Hello",
-    task_name="chat",
-    message_converter=custom_message_converter
-)
-```
-
 ### Expense Tracking
 
 Implement custom expense tracking:
@@ -190,23 +168,58 @@ result = await cached_agent_run(
 )
 ```
 
+## Migration Guide
+
+### Version 0.2.0 Changes
+
+1. Complete Result Objects
+   - Both `cached_agent_run` and `cached_agent_run_sync` now always return the complete result object
+   - The result object includes:
+     - `data`: The typed response data
+     - `usage`: Token usage information
+     - `metadata`: Any additional model-specific metadata
+
+2. Simplified Parameter Structure
+   - Removed `transcript_history` parameter (use `message_history` instead)
+   - Removed `message_converter` parameter (message conversion is now handled internally)
+   - All additional parameters are passed directly to `agent.run` via `**kwargs`
+
+3. Message History Handling
+   - Message history is now passed directly via the `message_history` parameter
+   - Messages are automatically converted to the appropriate format
+   - The cache key incorporates the message history to ensure unique caching per conversation context
+
+Example of migrating from 0.1.x to 0.2.0:
+
+```python
+# Old code (0.1.x)
+result = await cached_agent_run(
+    agent=agent,
+    prompt="Hello",
+    task_name="chat",
+    transcript_history=["User: Hi", "Assistant: Hello!"],
+    message_converter=my_converter,
+    full_result=True
+)
+
+# New code (0.2.0)
+result = await cached_agent_run(
+    agent=agent,
+    prompt="Hello",
+    task_name="chat",
+    message_history=[
+        ModelRequest(parts=[UserPromptPart(content="Hi")]),
+        ModelResponse(parts=[TextPart(content="Hello!")])
+    ]
+)
+```
+
 ## Error Handling
 
 The library provides specific exceptions for different error cases:
 
 ```python
-import os
-from dotenv import load_dotenv
-from pydantic import BaseModel, Field
-from pydantic_ai import Agent
-# Import caching functions and ModelCosts
-from pyai_caching import cached_agent_run, cached_agent_run_sync, ModelCosts
-# Import specific exceptions
-from pyai_caching.exceptions import (
-    RateLimitError, 
-    CacheError, 
-    ConfigurationError
-)
+from pyai_caching.exceptions import UsageLimitExceeded, ConfigurationError
 
 try:
     result = await cached_agent_run(
@@ -214,26 +227,61 @@ try:
         prompt="Hello",
         task_name="chat"
     )
-except ConfigurationError as e:
-    print(f"Configuration error: {e}")
-except RateLimitError as e:
-    print(f"Rate limit exceeded: {e}")
-except CacheError as e:
-    print(f"Cache error: {e}")
+except UsageLimitExceeded:
+    print("Rate limit exceeded and max wait time reached")
+except ConfigurationError:
+    print("Redis URL not configured")
+except ValueError as e:
+    print(f"Invalid input: {e}")
 ```
 
-## Development
+## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
-
-## Security
-
-See [SECURITY.md](SECURITY.md) for security guidelines.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history. 
+
+## Migration Guide (v0.2.0)
+
+### Breaking Changes
+
+1. Return Value Changes
+   - `cached_agent_run` and `cached_agent_run_sync` now always return the complete result object
+   - The `full_result` parameter has been removed
+   - To access just the data, use `result.data` instead of the result directly
+
+2. Message History Handling
+   - The `transcript_history` parameter has been removed in favor of `message_history`
+   - Message history is now passed directly through kwargs
+   - The `message_converter` parameter has been removed - messages are now handled natively
+
+### Before (v0.1.x)
+```python
+result = await cached_agent_run(
+    agent=agent,
+    transcript_history=[{"role": "user", "content": "Hello"}],
+    prompt="Reply to the user",
+    task_name="chat",
+    message_converter=my_converter,
+    full_result=False
+)
+# result contains just the data
+```
+
+### After (v0.2.0)
+```python
+result = await cached_agent_run(
+    agent=agent,
+    message_history=[{"role": "user", "content": "Hello"}],
+    prompt="Reply to the user",
+    task_name="chat"
+)
+# result contains the full result object
+data = result.data  # Access just the data
+```

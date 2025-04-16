@@ -11,7 +11,7 @@ from pydantic_ai import Agent, models
 from pydantic import BaseModel, Field
 from typing import List, Any
 from pydantic_ai.models.function import AgentInfo, FunctionModel
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart
+from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ModelRequest, UserPromptPart
 from conftest import MockUsage, MockResult
 from pyai_caching.agent import cached_agent_run_sync
 
@@ -66,24 +66,6 @@ def test_agent():
     return agent
 
 @pytest.mark.asyncio
-async def test_cached_agent_run_basic(test_agent: Agent, mock_expense_recorder: AsyncMock, custom_costs, redis_url):
-    """Test basic functionality - checks structure, not exact content."""
-    result = await cached_agent_run(
-        agent=test_agent,
-        prompt="Give a simple response with high confidence.", # Prompt that fits the TestResult schema
-        task_name="test",
-        expense_recorder=mock_expense_recorder,
-        redis_url=redis_url,
-        custom_costs=custom_costs
-    )
-    
-    assert isinstance(result, MockResultData)
-    assert isinstance(result.response, str)
-    assert isinstance(result.confidence, float)
-    assert 0 <= result.confidence <= 1
-    mock_expense_recorder.assert_called_once_with(MODEL_NAME, "test", ANY)
-
-@pytest.mark.asyncio
 async def test_cached_agent_run_with_cache_hit(test_agent: Agent, mock_expense_recorder: AsyncMock, custom_costs, redis_url):
     """Test cached_agent_run when result is in cache, comparing data."""
     prompt = "Give a simple response with high confidence for cache hit test."
@@ -109,25 +91,29 @@ async def test_cached_agent_run_with_cache_hit(test_agent: Agent, mock_expense_r
         custom_costs=custom_costs
     )
     
-    # Compare model dumps for equality, as object IDs will differ after unpickling
-    assert result1.model_dump() == result2.model_dump()
+    # Compare data fields for equality
+    assert result1.data == result2.data
     mock_expense_recorder.assert_called_once_with(MODEL_NAME, "test", 0)
 
 @pytest.mark.asyncio
 async def test_cached_agent_run_with_history(test_agent: Agent, mock_expense_recorder: AsyncMock, custom_costs, redis_url):
     """Test cached_agent_run with message history."""
-    history = [{"role": "user", "content": "previous message"}]
+    history = [
+        ModelRequest(parts=[UserPromptPart(content="previous message")]),
+        ModelResponse(parts=[TextPart(content="previous response")])
+    ]
     result = await cached_agent_run(
         agent=test_agent,
         prompt="test prompt",
         task_name="test",
-        transcript_history=history,
+        message_history=history,
         expense_recorder=mock_expense_recorder,
         redis_url=redis_url,
         custom_costs=custom_costs
     )
-    assert isinstance(result, MockResultData)
-    # Expense recorder assertion might be needed here too
+    assert isinstance(result.data, MockResultData)
+    assert isinstance(result.data.response, str)
+    assert isinstance(result.data.confidence, float)
 
 @pytest.mark.asyncio
 async def test_cached_agent_run_missing_redis_url():
@@ -169,9 +155,9 @@ async def test_cached_agent_run_cache_error(test_agent: Agent, mock_expense_reco
         )
         
         # Check result type and attributes
-        assert isinstance(result, MockResultData)
-        assert isinstance(result.response, str)
-        assert isinstance(result.confidence, float)
+        assert isinstance(result.data, MockResultData)
+        assert isinstance(result.data.response, str)
+        assert isinstance(result.data.confidence, float)
 
 @pytest.mark.asyncio
 async def test_cached_agent_run_custom_ttl(test_agent: Agent, mock_expense_recorder: AsyncMock, custom_costs, redis_url):
@@ -231,9 +217,8 @@ async def test_cached_agent_run_corrupted_cache(test_agent: Agent, mock_expense_
         )
         
         # Check result type and attributes (should match the mocked agent.run response)
-        assert isinstance(result, MockResultData)
-        assert result.response == "mock response"
-        assert result.confidence == 0.9
+        assert isinstance(result.data, MockResultData)
+        assert result.data == expected_data
         mock_agent_run.assert_awaited_once() # Verify agent.run was called
 
 # Test for the synchronous wrapper
@@ -249,10 +234,10 @@ def test_cached_agent_run_sync_basic(test_agent: Agent, mock_expense_recorder: A
         custom_costs=custom_costs
     )
     
-    assert isinstance(result, MockResultData)
-    assert isinstance(result.response, str)
-    assert isinstance(result.confidence, float)
-    assert 0 <= result.confidence <= 1
+    assert isinstance(result.data, MockResultData)
+    assert isinstance(result.data.response, str)
+    assert isinstance(result.data.confidence, float)
+    assert 0 <= result.data.confidence <= 1
     # Check that the async expense recorder was eventually called
     mock_expense_recorder.assert_called_once_with(MODEL_NAME, "sync_test", ANY)
 

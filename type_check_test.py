@@ -1,26 +1,18 @@
-from typing import List, Dict
+from typing import List, Dict, Any
 from pydantic_ai import Agent
 from pyai_caching import cached_agent_run
 from pyai_caching.costs import ModelCosts, TokenCounts, calculate_cost
-from pyai_caching.types import MessageConverter
 from pyai_caching.config import get_redis_client
-
-# Test type hints with custom message converter
-def my_message_converter(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
-    return messages
-
-# This should raise a type error because the return type is wrong
-def bad_message_converter(messages: List[Dict[str, str]]) -> str:  # type: ignore
-    return "wrong type"
+from pydantic import BaseModel
 
 # Test with custom agent types
 class MyInput:
     def __init__(self, prompt: str):
         self.prompt = prompt
 
-class MyOutput:
-    def __init__(self, response: str):
-        self.response = response
+class MyOutput(BaseModel):
+    response: str
+    confidence: float
 
 # Create a typed agent
 agent: Agent[MyInput, MyOutput] = Agent()  # type: ignore
@@ -31,9 +23,13 @@ async def test_cached_run() -> None:
     result = await cached_agent_run(
         agent=agent,
         prompt="test prompt",
-        task_name="test_task",
-        message_converter=my_message_converter
+        task_name="test_task"
     )
+    
+    # Verify result type
+    assert isinstance(result.data, MyOutput)
+    assert isinstance(result.data.response, str)
+    assert isinstance(result.data.confidence, float)
     
     # This should raise a type error
     result2 = await cached_agent_run(

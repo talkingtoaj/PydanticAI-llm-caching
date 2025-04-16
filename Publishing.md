@@ -11,6 +11,7 @@ Approve the deployment to the pypi environment in the GitHub Actions run.
 
 To push a new:
 - [ ] Update the version in pyproject.toml (e.g., to 0.1.1 or 1.0.0).
+- [ ] Update the __version__ in __init__.py
 - [ ] Commit the change.
 `git commit -m "Bump version to 0.1.1"`
 `git push main`
