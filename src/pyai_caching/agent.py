@@ -15,6 +15,22 @@ log = logging.getLogger(__name__)
 # Default TTL for cached responses (15 days)
 DEFAULT_TTL = 3600 * 24 * 15
 
+class CachedResult:
+    """A class to represent cached agent results.
+    
+    This class provides a consistent interface for cached results, similar to the original
+    agent result object but without any non-picklable components.
+    """
+    def __init__(self, output: Any, usage: Any, model: str, cost: float):
+        self.output = output
+        self._usage = usage
+        self.model = model
+        self.cost = cost
+        
+    def usage(self) -> Any:
+        """Get usage data."""
+        return self._usage
+
 def _get_model_name(agent: Agent[Any, Any]) -> str:
     """Helper to get the model name from an agent.
     
@@ -165,7 +181,15 @@ async def cached_agent_run(
             cost = calculate_cost(model_name, result, custom_costs)
             await expense_recorder(model_name, task_name, cost)
             log.debug(f"Setting cache with TTL: {ttl} seconds")
-            redis_client.set(cache_key, pickle.dumps(result), ex=ttl)
+            
+            # Create a cacheable version of the result
+            cacheable_result = CachedResult(
+                output=result.output,
+                usage=result.usage(),
+                model=model_name,
+                cost=cost
+            )
+            redis_client.set(cache_key, pickle.dumps(cacheable_result), ex=ttl)
             return result
 
         except UsageLimitExceeded as e:
