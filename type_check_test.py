@@ -27,9 +27,9 @@ async def test_cached_run() -> None:
     )
     
     # Verify result type
-    assert isinstance(result.data, MyOutput)
-    assert isinstance(result.data.response, str)
-    assert isinstance(result.data.confidence, float)
+    assert isinstance(result.output, MyOutput)
+    assert isinstance(result.output.response, str)
+    assert isinstance(result.output.confidence, float)
     
     # This should raise a type error
     result2 = await cached_agent_run(

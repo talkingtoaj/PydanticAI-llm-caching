@@ -18,8 +18,8 @@ class Agent(Protocol):
 
 class MockResult:
     """Mock result from agent run."""
-    def __init__(self, data: Any, usage: MockUsage):
-        self.data = data
+    def __init__(self, output: Any, usage: MockUsage):
+        self.output = output
         self._usage = usage
 
     def usage(self) -> MockUsage:

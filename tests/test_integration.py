@@ -20,7 +20,7 @@ def test_agent():
     """Create a real Claude agent for testing."""
     return Agent(
         model=MODEL_NAME,
-        result_type=MockResultData,
+        output_type=MockResultData,
         name="test_agent",
         system_prompt="You are a test agent. Always respond with a short message and a confidence score between 0 and 1."
     )
@@ -62,7 +62,7 @@ async def test_basic_caching(redis_url, test_agent, custom_costs):
     )
     
     # Results should be equal
-    assert result1.data == result2.data
+    assert result1.output == result2.output
 
 # @pytest.mark.asyncio
 # async def test_cache_expiration(redis_url, test_agent, custom_costs):

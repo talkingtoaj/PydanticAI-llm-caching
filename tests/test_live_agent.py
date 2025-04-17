@@ -14,7 +14,7 @@ def create_random_letter_agent() -> Agent[None, str]:
     """Create a simple agent that returns 5 random letters."""
     return Agent(
         "anthropic:claude-3-5-haiku-latest",  # Using a fast, cheap model
-        result_type=str,
+        output_type=str,
         model_settings={"temperature": 1.0},  # Maximum temperature for randomness
         system_prompt=(
             "You are a random letter generator. "
@@ -70,7 +70,7 @@ async def test_caching_with_live_agent():
     print(f"Second call result: {result2}")
     
     # Results should be identical since second call used cache
-    assert result1 == result2, "Cache miss: got different results for same prompt"
+    assert result1.output == result2.output, "Cache miss: got different results for same prompt"
     
     # Different prompt should hit API again
     result3 = await cached_agent_run(
@@ -84,4 +84,4 @@ async def test_caching_with_live_agent():
     print(f"Different prompt result: {result3}")
     
     # Results should be different since it's a new API call with high temperature
-    assert result1 != result3, "Expected different results for different prompt" 
+    assert result1.output != result3.output, "Expected different results for different prompt" 

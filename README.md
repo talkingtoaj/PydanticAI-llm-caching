@@ -52,7 +52,7 @@ class UserProfile(BaseModel):
 
 profiler_agent = Agent(
     model="anthropic:claude-3-5-haiku-latest", 
-    result_type=UserProfile,
+    output_type=UserProfile,
     name="profiler",
     system_prompt="You read transcripts and extract pertinent details for a profile record on a person."
 )
@@ -69,7 +69,7 @@ result = await cached_agent_run(
 )
 
 # Access the typed data from the result
-profile = result.data
+profile = result.output
 print(type(profile))
 # <class '__main__.UserProfile'> (or similar based on execution context)
 print(profile)
@@ -254,7 +254,7 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 1. Return Value Changes
    - `cached_agent_run` and `cached_agent_run_sync` now always return the complete result object
    - The `full_result` parameter has been removed
-   - To access just the data, use `result.data` instead of the result directly
+   - To access just the data, use `result.output` instead of the result directly
 
 2. Message History Handling
    - The `transcript_history` parameter has been removed in favor of `message_history`
@@ -283,5 +283,5 @@ result = await cached_agent_run(
     task_name="chat"
 )
 # result contains the full result object
-data = result.data  # Access just the data
+data = result.output  # Access just the data
 ```

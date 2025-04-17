@@ -62,9 +62,9 @@ def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
         key_parts.append(history_str)
     
     # Include output model schema in cache key
-    if hasattr(agent, 'result_type') and agent.result_type:
+    if hasattr(agent, 'output_type') and agent.output_type:
         try:
-            schema = agent.result_type.model_json_schema()
+            schema = agent.output_type.model_json_schema()
             # Convert schema to a stable string representation
             schema_str = str(sorted(schema.items()))
             key_parts.append(schema_str)

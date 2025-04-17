@@ -58,7 +58,7 @@ def test_agent():
     """Create a test agent using a real model name, without mocking run."""
     agent = Agent(
         model=MODEL_NAME, 
-        result_type=MockResultData,
+        output_type=MockResultData,
         name="test_agent",
         system_prompt="You are a test agent that provides simple responses."
     )
@@ -92,7 +92,7 @@ async def test_cached_agent_run_with_cache_hit(test_agent: Agent, mock_expense_r
     )
     
     # Compare data fields for equality
-    assert result1.data == result2.data
+    assert result1.output == result2.output
     mock_expense_recorder.assert_called_once_with(MODEL_NAME, "test", 0)
 
 @pytest.mark.asyncio
@@ -111,9 +111,9 @@ async def test_cached_agent_run_with_history(test_agent: Agent, mock_expense_rec
         redis_url=redis_url,
         custom_costs=custom_costs
     )
-    assert isinstance(result.data, MockResultData)
-    assert isinstance(result.data.response, str)
-    assert isinstance(result.data.confidence, float)
+    assert isinstance(result.output, MockResultData)
+    assert isinstance(result.output.response, str)
+    assert isinstance(result.output.confidence, float)
 
 @pytest.mark.asyncio
 async def test_cached_agent_run_missing_redis_url():
@@ -155,9 +155,9 @@ async def test_cached_agent_run_cache_error(test_agent: Agent, mock_expense_reco
         )
         
         # Check result type and attributes
-        assert isinstance(result.data, MockResultData)
-        assert isinstance(result.data.response, str)
-        assert isinstance(result.data.confidence, float)
+        assert isinstance(result.output, MockResultData)
+        assert isinstance(result.output.response, str)
+        assert isinstance(result.output.confidence, float)
 
 @pytest.mark.asyncio
 async def test_cached_agent_run_custom_ttl(test_agent: Agent, mock_expense_recorder: AsyncMock, custom_costs, redis_url):
@@ -201,7 +201,7 @@ async def test_cached_agent_run_corrupted_cache(test_agent: Agent, mock_expense_
         expected_data = MockResultData(response="mock response", confidence=0.9)
         # Mock the full ModelResponse structure that agent.run returns
         mock_agent_run.return_value = MockResult(
-            data=expected_data, 
+            output=expected_data, 
             usage=usage
         )
         
@@ -217,8 +217,8 @@ async def test_cached_agent_run_corrupted_cache(test_agent: Agent, mock_expense_
         )
         
         # Check result type and attributes (should match the mocked agent.run response)
-        assert isinstance(result.data, MockResultData)
-        assert result.data == expected_data
+        assert isinstance(result.output, MockResultData)
+        assert result.output == expected_data
         mock_agent_run.assert_awaited_once() # Verify agent.run was called
 
 # Test for the synchronous wrapper
@@ -234,10 +234,10 @@ def test_cached_agent_run_sync_basic(test_agent: Agent, mock_expense_recorder: A
         custom_costs=custom_costs
     )
     
-    assert isinstance(result.data, MockResultData)
-    assert isinstance(result.data.response, str)
-    assert isinstance(result.data.confidence, float)
-    assert 0 <= result.data.confidence <= 1
+    assert isinstance(result.output, MockResultData)
+    assert isinstance(result.output.response, str)
+    assert isinstance(result.output.confidence, float)
+    assert 0 <= result.output.confidence <= 1
     # Check that the async expense recorder was eventually called
     mock_expense_recorder.assert_called_once_with(MODEL_NAME, "sync_test", ANY)
 
@@ -250,13 +250,13 @@ async def test_cache_key_with_different_output_models(test_agent: Agent, mock_ex
         class OutputModel(BaseModel):
             field1: str
             field2: int
-        return Agent(test_agent.model, result_type=OutputModel)
+        return Agent(test_agent.model, output_type=OutputModel)
     
     def create_agent_with_model2():
         class OutputModel(BaseModel):
             field1: str
             field3: float  # Different field name and type
-        return Agent(test_agent.model, result_type=OutputModel)
+        return Agent(test_agent.model, output_type=OutputModel)
     
     # Create agents in separate scopes
     agent1 = create_agent_with_model1()
