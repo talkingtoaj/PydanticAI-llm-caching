@@ -14,7 +14,7 @@ To push a new:
 - [ ] Update the __version__ in __init__.py
 - [ ] Commit the change.
 `git commit -m "Bump version to 0.1.1"`
-`git push main`
+`git push`
 
 - [ ] Create a git tag matching the version (e.g., git tag v0.1.1).
 `git tag v0.1.1`
