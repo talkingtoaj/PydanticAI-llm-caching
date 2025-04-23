@@ -100,6 +100,7 @@ async def cached_agent_run(
     expense_recorder: ExpenseRecorder = noop_expense_recorder,
     redis_url: Optional[str] = None,
     custom_costs: Optional[Dict[str, ModelCosts]] = None,
+    skip_cache: bool = False, # Can be used to utilize other uses of this wrapper without caching
     **kwargs: Any
 ) -> Any:
     """Run an agent with Redis caching and rate limit handling.
@@ -135,42 +136,37 @@ async def cached_agent_run(
         ConfigurationError: If Redis URL is not configured
         ValueError: If model costs are not found or prompt is empty
     """
-    # --- Input Validation ---
-    if not prompt:
-        raise ValueError("Prompt cannot be empty.")
-    # ----------------------
 
-    # Get Redis client
-    redis_client = get_redis_client(redis_url)
-    log.debug(f"Using Redis client with TTL: {ttl} seconds")
-    
-    # Determine model name using the helper function
     model_name = _get_model_name(agent)
-    
-    # Try to get from cache
-    cache_key = create_cache_key(agent, prompt, **kwargs)
-    cached_result = None # Initialize to None
-    try:
-        cached_result = redis_client.get(cache_key)
-        if cached_result:
-            log.debug(f"Cache hit for key: {cache_key}")
-        else:
-            log.debug(f"Cache miss for key: {cache_key}")
-    except Exception as e:
-        log.warning(f"Error getting cache key '{cache_key}' from Redis: {e}")
-        # Treat as cache miss, proceed to agent run
-        
-    if cached_result:
-        try:
-            result = pickle.loads(bytes(cached_result))
-            # Use model_name for expense recorder on cache hit
-            await expense_recorder(model_name, task_name, 0)  # Cache hits are free
-            return result
-        except Exception as e:
-            log.warning(f"Error unpickling cached result: {e}")
 
-    # Not in cache, run the agent with exponential backoff
-    log.debug(f"Cache miss for key: {cache_key}")
+    if not skip_cache:
+        redis_client = get_redis_client(redis_url)
+        log.debug(f"Using Redis client with TTL: {ttl} seconds")
+
+        # Try to get from cache
+        cache_key = create_cache_key(agent, prompt, **kwargs)
+        cached_result = None # Initialize to None
+        try:
+            cached_result = redis_client.get(cache_key)
+            if cached_result:
+                log.debug(f"Cache hit for key: {cache_key}")
+            else:
+                log.debug(f"Cache miss for key: {cache_key}")
+        except Exception as e:
+            log.warning(f"Error getting cache key '{cache_key}' from Redis: {e}")
+            # Treat as cache miss, proceed to agent run
+            
+        if cached_result:
+            try:
+                result = pickle.loads(bytes(cached_result))
+                # Use model_name for expense recorder on cache hit
+                await expense_recorder(model_name, task_name, 0)  # Cache hits are free
+                return result
+            except Exception as e:
+                log.warning(f"Error unpickling cached result: {e}")
+
+        # Not in cache, run the agent with exponential backoff
+        log.debug(f"Cache miss for key: {cache_key}")
     wait_time = initial_wait
     last_error = None
 
@@ -180,16 +176,16 @@ async def cached_agent_run(
             # Calculate cost from usage data
             cost = calculate_cost(model_name, result, custom_costs)
             await expense_recorder(model_name, task_name, cost)
-            log.debug(f"Setting cache with TTL: {ttl} seconds")
-            
-            # Create a cacheable version of the result
-            cacheable_result = CachedResult(
-                output=result.output,
-                usage=result.usage(),
-                model=model_name,
-                cost=cost
-            )
-            redis_client.set(cache_key, pickle.dumps(cacheable_result), ex=ttl)
+
+            if not skip_cache:
+                # Create a cacheable version of the result
+                cacheable_result = CachedResult(
+                    output=result.output,
+                    usage=result.usage(),
+                    model=model_name,
+                    cost=cost
+                )
+                redis_client.set(cache_key, pickle.dumps(cacheable_result), ex=ttl)
             return result
 
         except UsageLimitExceeded as e:

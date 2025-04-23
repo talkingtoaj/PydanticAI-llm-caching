@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyai-caching"
-version = "0.2.2"
+version = "0.2.3"
 description = "Redis-based caching for Pydantic AI LLM agents with cost tracking"
 authors = ["Andrew de Jonge <talkingtoaj@hotmail.com>"]
 readme = "README.md"
