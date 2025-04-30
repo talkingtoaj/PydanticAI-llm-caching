@@ -63,6 +63,18 @@ DEFAULT_COSTS: Dict[str, ModelCosts] = {
         cost_per_million_caching_input_tokens=0.025,
         cost_per_million_caching_hit_tokens=0.0,
     ),
+    "gemini-2.5-flash-preview": ModelCosts(
+        cost_per_million_input_tokens=0.15,
+        cost_per_million_output_tokens=0.60,
+        cost_per_million_caching_input_tokens=0.0375,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
+    "gemini-2.5-pro-preview": ModelCosts(
+        cost_per_million_input_tokens=1.25,   
+        cost_per_million_output_tokens=10.0,
+        cost_per_million_caching_input_tokens=0.3125,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
 }
 
 def get_model_costs(model_name: str, custom_costs: Optional[Dict[str, ModelCosts]] = None) -> ModelCosts:
