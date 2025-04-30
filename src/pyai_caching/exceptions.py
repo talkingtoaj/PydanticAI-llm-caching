@@ -6,4 +6,8 @@ class RateLimitError(Exception):
 
 class CacheError(Exception):
     """Raised when there is an error with the cache."""
+    pass
+
+class ConnectionError(Exception):
+    """Raised when there is a connection-level error."""
     pass 

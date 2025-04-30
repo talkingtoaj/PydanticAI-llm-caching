@@ -2,6 +2,7 @@
 
 import asyncio
 import pickle
+import random
 from typing import Any, Optional, Dict
 from pydantic_ai import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
@@ -9,11 +10,20 @@ import logging
 from .types import ExpenseRecorder, noop_expense_recorder
 from .config import get_redis_client
 from .costs import ModelCosts, calculate_cost
+from .exceptions import ConnectionError
 
 log = logging.getLogger(__name__)
 
 # Default TTL for cached responses (15 days)
 DEFAULT_TTL = 3600 * 24 * 15
+
+# Default retry configuration
+DEFAULT_RETRY_CONFIG = {
+    'max_retries': 3,
+    'initial_delay': 1.0,
+    'max_delay': 10.0,
+    'jitter': 0.1
+}
 
 class CachedResult:
     """A class to represent cached agent results.
@@ -100,6 +110,7 @@ async def cached_agent_run(
     expense_recorder: ExpenseRecorder = noop_expense_recorder,
     redis_url: Optional[str] = None,
     custom_costs: Optional[Dict[str, ModelCosts]] = None,
+    retry_config: Optional[Dict[str, Any]] = None,
     **kwargs: Any
 ) -> Any:
     """Run an agent with Redis caching and rate limit handling.
@@ -119,19 +130,15 @@ async def cached_agent_run(
         expense_recorder: Function to record expenses (default: noop)
         redis_url: Optional Redis URL (defaults to LLM_CACHE_REDIS_URL env var)
         custom_costs: Optional dictionary of custom costs per model
-        **kwargs: Additional arguments passed directly to agent.run, including:
-                 - message_history: List of messages providing conversation context
-                 - model_settings: Dict of model-specific settings
-                 Any other kwargs are passed directly to agent.run
+        retry_config: Optional retry configuration (defaults to DEFAULT_RETRY_CONFIG)
+        **kwargs: Additional arguments passed directly to agent.run
         
     Returns:
-        The complete agent run result object containing:
-        - data: The typed response data
-        - usage: Token usage information
-        - metadata: Any additional model-specific metadata
+        The complete agent run result object
         
     Raises:
         UsageLimitExceeded: If rate limits are hit and max_wait is exceeded
+        ConnectionError: If connection errors persist after retries
         ConfigurationError: If Redis URL is not configured
         ValueError: If model costs are not found or prompt is empty
     """
@@ -173,8 +180,13 @@ async def cached_agent_run(
     log.debug(f"Cache miss for key: {cache_key}")
     wait_time = initial_wait
     last_error = None
+    
+    # Use provided retry config or defaults
+    retry_config = retry_config or DEFAULT_RETRY_CONFIG
+    max_retries = retry_config['max_retries']
+    retry_count = 0
 
-    while wait_time <= max_wait:
+    while retry_count < max_retries:
         try:
             result = await agent.run(prompt, **kwargs)
             # Calculate cost from usage data
@@ -197,16 +209,31 @@ async def cached_agent_run(
             log.info(f"Rate limit hit. Waiting {wait_time} seconds before retry...")
             await asyncio.sleep(wait_time)
             wait_time *= 2  # Exponential backoff
+            
+        except (asyncio.TimeoutError, ConnectionRefusedError, ConnectionResetError) as e:
+            retry_count += 1
+            if retry_count >= max_retries:
+                log.error(f"Connection error after {max_retries} retries: {e}")
+                raise ConnectionError(f"Connection error after {max_retries} retries: {e}")
+            
+            # Calculate delay with jitter
+            delay = min(wait_time * (2 ** retry_count), retry_config['max_delay'])
+            jitter = random.uniform(-retry_config['jitter'], retry_config['jitter'])
+            actual_delay = delay * (1 + jitter)
+            
+            log.info(f"Connection error. Retry {retry_count}/{max_retries}. Waiting {actual_delay:.2f} seconds...")
+            await asyncio.sleep(actual_delay)
+            last_error = e
 
         except Exception as e:
             log.error(f"Unexpected error running agent: {e}")
             raise
 
-    # If we get here, we've exceeded max_wait
-    log.error(f"Rate limit retries exhausted after {max_wait} seconds")
+    # If we get here, we've exceeded max_retries
+    log.error(f"Retries exhausted after {max_retries} attempts")
     if last_error:
         raise last_error
-    raise RuntimeError(f"Rate limit retries exhausted after {max_wait} seconds")
+    raise RuntimeError(f"Retries exhausted after {max_retries} attempts")
 
 def cached_agent_run_sync(
     agent: Agent[Any, Any],

@@ -8,7 +8,7 @@ from .costs import ModelCosts, DEFAULT_COSTS
 from .config import ConfigurationError
 from .exceptions import RateLimitError, CacheError
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 __all__ = [
     "cached_agent_run",
     "cached_agent_run_sync",
