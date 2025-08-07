@@ -1,6 +1,9 @@
 """Cost calculation for LLM usage."""
 
 from typing import Any, NamedTuple, Dict, Optional
+import logging
+
+log = logging.getLogger(__name__)
 
 class ModelCosts(NamedTuple):
     """Cost structure for a model."""
@@ -68,6 +71,18 @@ DEFAULT_COSTS: Dict[str, ModelCosts] = {
         cost_per_million_output_tokens=0.60,
         cost_per_million_caching_input_tokens=0.0375,
         cost_per_million_caching_hit_tokens=0.0,
+    ),
+    "gemini-2.5-flash": ModelCosts(
+        cost_per_million_input_tokens=0.3,
+        cost_per_million_output_tokens=2.5,
+        cost_per_million_caching_input_tokens=0.075,
+        cost_per_million_caching_hit_tokens=0.075,
+    ),
+    "gemini-2.5-flash-lite": ModelCosts(
+        cost_per_million_input_tokens=0.1,
+        cost_per_million_output_tokens=0.4,
+        cost_per_million_caching_input_tokens=0.025,
+        cost_per_million_caching_hit_tokens=0.025,
     ),
     "gemini-2.5-pro-preview": ModelCosts(
         cost_per_million_input_tokens=1.25,   

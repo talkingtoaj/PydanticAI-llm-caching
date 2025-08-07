@@ -11,8 +11,6 @@ from test_agent import MockResultData, MODEL_NAME
 @pytest.fixture
 def redis_url():
     url = os.getenv("LLM_CACHE_REDIS_URL")
-    if not url:
-        pytest.skip("Redis URL not configured in environment")
     return url
 
 @pytest.fixture

@@ -57,8 +57,6 @@ def custom_costs():
 def redis_url():
     """Get Redis URL from environment."""
     url = os.getenv("LLM_CACHE_REDIS_URL")
-    if not url:
-        pytest.skip("Redis URL not configured in environment")
     return url
 
 async def measure_time(func, *args, **kwargs):
