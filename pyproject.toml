@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyai-caching"
-version = "0.2.8"
+version = "0.2.9"
 description = "Redis-based caching for Pydantic AI LLM agents with cost tracking"
 authors = ["Andrew de Jonge <talkingtoaj@hotmail.com>"]
 readme = "README.md"
@@ -21,21 +21,21 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-redis = "^5.0.1"
-pydantic = "^2.6.1"
-typing-extensions = "^4.9.0"
-pydantic-ai = "^0.1"
+redis = "*"
+pydantic = "*"
+typing-extensions = "*"
+pydantic-ai = "*"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.0.0"
-pytest-asyncio = "^0.23.5"
-pytest-mock = "^3.12.0"
-pytest-cov = "^4.1.0"
-python-dotenv = "^1.0.1"
-black = "^24.1.1"
-ruff = "^0.2.1"
-mypy = "^1.8.0"
-pre-commit = "^3.6.0"
+pytest = "*"
+pytest-asyncio = "*"
+pytest-mock = "*"
+pytest-cov = "*"
+python-dotenv = "*"
+black = "*"
+ruff = "*"
+mypy = "*"
+pre-commit = "*"
 
 [build-system]
 requires = ["poetry-core"]

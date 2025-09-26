@@ -41,6 +41,12 @@ DEFAULT_COSTS: Dict[str, ModelCosts] = {
         cost_per_million_caching_input_tokens=0.0,
         cost_per_million_caching_hit_tokens=0.075,
     ),
+    "gpt-5-nano": ModelCosts(
+        cost_per_million_input_tokens=0.05,
+        cost_per_million_output_tokens=0.4,
+        cost_per_million_caching_input_tokens=0.005,
+        cost_per_million_caching_hit_tokens=0.005,
+    ),
     "o3-mini-2025-01-31": ModelCosts(
         cost_per_million_input_tokens=1.1,
         cost_per_million_output_tokens=4.4,
