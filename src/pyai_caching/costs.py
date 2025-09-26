@@ -130,9 +130,11 @@ def get_model_costs(model_name: str, custom_costs: Optional[Dict[str, ModelCosts
 
 def get_token_counts(usage: Any) -> TokenCounts:
     """Get all token counts from usage data, separating regular and cached tokens."""
-    # Get total token counts
-    total_input = getattr(usage, 'request_tokens', 0) or 0
-    total_output = getattr(usage, 'response_tokens', 0) or 0
+    # Get total token counts - try new field names first, fallback to deprecated ones
+    total_input = (getattr(usage, 'input_tokens', 0) or 0 or 
+                   getattr(usage, 'request_tokens', 0) or 0)
+    total_output = (getattr(usage, 'output_tokens', 0) or 0 or 
+                    getattr(usage, 'response_tokens', 0) or 0)
     
     # Get cached tokens from details
     details = getattr(usage, 'details', None) or {}
