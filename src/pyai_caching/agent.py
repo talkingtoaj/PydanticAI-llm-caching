@@ -89,7 +89,8 @@ def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
     """Create a cache key from the agent, prompt, and output model schema.
     
     The cache key incorporates the agent configuration, prompt text, message history (if present),
-    and output model schema to ensure unique caching per conversation context.
+    output model schema, and library version to ensure unique caching per conversation context
+    and to invalidate old cached entries when the library is updated.
     
     Args:
         agent: The PydanticAI agent to run
@@ -101,8 +102,12 @@ def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
     Returns:
         str: A unique cache key incorporating all elements that could affect the response
     """
+    # Import version here to avoid circular imports
+    from . import __version__
+    
     # Include relevant kwargs in the cache key if they affect the response
     key_parts = [
+        f"v{__version__}",  # Include version to invalidate old cache entries
         str(agent),
         prompt
     ]

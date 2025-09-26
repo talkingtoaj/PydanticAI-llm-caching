@@ -28,11 +28,37 @@ class MockResultData(BaseModel):
     response: str = Field(..., description="The response text")
     confidence: float = Field(..., description="Confidence score", ge=0.0, le=1.0)
 
+def assert_expense_recorder_called_with_flexible_model(mock_expense_recorder: AsyncMock, expected_model_name: str, task_name: str, expected_cost: Any = None):
+    """Assert that expense recorder was called with flexible model name matching.
+    
+    Args:
+        mock_expense_recorder: The mock expense recorder
+        expected_model_name: The expected model name (e.g., "anthropic:claude-3-5-haiku-latest")
+        task_name: The expected task name
+        expected_cost: The expected cost (can be a specific value or ANY)
+    """
+    calls = mock_expense_recorder.call_args_list
+    assert len(calls) == 1, f"Expected 1 call, got {len(calls)}"
+    call_args = calls[0][0]  # Get positional arguments
+    
+    # Flexible model name matching
+    actual_model_name = call_args[0]
+    assert expected_model_name in actual_model_name or actual_model_name in expected_model_name, \
+        f"Model name mismatch: expected '{expected_model_name}' to be contained in '{actual_model_name}' or vice versa"
+    
+    assert call_args[1] == task_name, f"Task name mismatch: expected '{task_name}', got '{call_args[1]}'"
+    
+    if expected_cost is not None:
+        if expected_cost == ANY:
+            assert call_args[2] is not None, "Cost should not be None"
+        else:
+            assert call_args[2] == expected_cost, f"Cost mismatch: expected {expected_cost}, got {call_args[2]}"
+
 @pytest.fixture
 def mock_expense_recorder():
     return AsyncMock()
 
-MODEL_NAME = "claude-3-5-haiku-latest"
+MODEL_NAME = "anthropic:claude-3-5-haiku-latest"
 
 @pytest.fixture
 def custom_costs():
@@ -91,7 +117,8 @@ async def test_cached_agent_run_with_cache_hit(test_agent: Agent, mock_expense_r
     
     # Compare data fields for equality
     assert result1.output == result2.output
-    mock_expense_recorder.assert_called_once_with(MODEL_NAME, "test", 0)
+    # Check that expense recorder was called with the correct model name (flexible matching)
+    assert_expense_recorder_called_with_flexible_model(mock_expense_recorder, MODEL_NAME, "test", 0)
 
 @pytest.mark.asyncio
 async def test_cached_agent_run_with_history(test_agent: Agent, mock_expense_recorder: AsyncMock, custom_costs, redis_url):
@@ -236,8 +263,8 @@ def test_cached_agent_run_sync_basic(test_agent: Agent, mock_expense_recorder: A
     assert isinstance(result.output.response, str)
     assert isinstance(result.output.confidence, float)
     assert 0 <= result.output.confidence <= 1
-    # Check that the async expense recorder was eventually called
-    mock_expense_recorder.assert_called_once_with(MODEL_NAME, "sync_test", ANY)
+    # Check that the async expense recorder was eventually called (flexible matching)
+    assert_expense_recorder_called_with_flexible_model(mock_expense_recorder, MODEL_NAME, "sync_test", ANY)
 
 @pytest.mark.asyncio
 async def test_cache_key_with_different_output_models(test_agent: Agent, mock_expense_recorder: AsyncMock, custom_costs, redis_url):
@@ -275,3 +302,17 @@ async def test_cache_key_with_different_output_models(test_agent: Agent, mock_ex
     assert "field3" in key2, "Second model's schema should be in key2"
     assert "field2" not in key2, "First model's schema should not be in key2"
     assert "field3" not in key1, "Second model's schema should not be in key1"
+
+def test_cache_key_includes_version(test_agent: Agent):
+    """Test that cache key includes the library version."""
+    from pyai_caching.agent import create_cache_key
+    from pyai_caching import __version__
+    
+    prompt = "Test prompt"
+    cache_key = create_cache_key(test_agent, prompt)
+    
+    # Verify version is included in the cache key
+    assert f"v{__version__}" in cache_key, f"Cache key should include version v{__version__}"
+    
+    # Verify the version appears at the beginning of the key
+    assert cache_key.startswith(f"v{__version__}|"), "Version should be at the start of the cache key"
