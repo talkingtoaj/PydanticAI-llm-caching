@@ -245,43 +245,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history. 
-
-## Migration Guide (v0.2.0)
-
-### Breaking Changes
-
-1. Return Value Changes
-   - `cached_agent_run` and `cached_agent_run_sync` now always return the complete result object
-   - The `full_result` parameter has been removed
-   - To access just the data, use `result.output` instead of the result directly
-
-2. Message History Handling
-   - The `transcript_history` parameter has been removed in favor of `message_history`
-   - Message history is now passed directly through kwargs
-   - The `message_converter` parameter has been removed - messages are now handled natively
-
-### Before (v0.1.x)
-```python
-result = await cached_agent_run(
-    agent=agent,
-    transcript_history=[{"role": "user", "content": "Hello"}],
-    prompt="Reply to the user",
-    task_name="chat",
-    message_converter=my_converter,
-    full_result=False
-)
-# result contains just the data
-```
-
-### After (v0.2.0)
-```python
-result = await cached_agent_run(
-    agent=agent,
-    message_history=[{"role": "user", "content": "Hello"}],
-    prompt="Reply to the user",
-    task_name="chat"
-)
-# result contains the full result object
-data = result.output  # Access just the data
-```
+See [CHANGELOG.md](CHANGELOG.md) for version history.

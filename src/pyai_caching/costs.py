@@ -27,6 +27,12 @@ class TokenCounts(NamedTuple):
 # Default cost mappings
 DEFAULT_COSTS: Dict[str, ModelCosts] = {
     # Anthropic Models
+    "claude-sonnet-4-20250514": ModelCosts(
+        cost_per_million_input_tokens=3.0,
+        cost_per_million_output_tokens=15.0,
+        cost_per_million_caching_input_tokens=3.75,
+        cost_per_million_caching_hit_tokens=0.3,
+    ),
     "claude-3-7-sonnet-latest": ModelCosts(
         cost_per_million_input_tokens=3.0,
         cost_per_million_output_tokens=15.0,
@@ -39,12 +45,48 @@ DEFAULT_COSTS: Dict[str, ModelCosts] = {
         cost_per_million_caching_input_tokens=1.0,
         cost_per_million_caching_hit_tokens=0.08,
     ),
+    "claude-3-opus-latest": ModelCosts(
+        cost_per_million_input_tokens=15.0,
+        cost_per_million_output_tokens=75.0,
+        cost_per_million_caching_input_tokens=18.75,
+        cost_per_million_caching_hit_tokens=1.5,
+    ),
+    "claude-3-sonnet-latest": ModelCosts(
+        cost_per_million_input_tokens=3.0,
+        cost_per_million_output_tokens=15.0,
+        cost_per_million_caching_input_tokens=3.75,
+        cost_per_million_caching_hit_tokens=0.3,
+    ),
     # OpenAI Models
+    "gpt-4.5-preview": ModelCosts(
+        cost_per_million_input_tokens=2.5,
+        cost_per_million_output_tokens=10.0,
+        cost_per_million_caching_input_tokens=0.0,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
+    "gpt-4o": ModelCosts(
+        cost_per_million_input_tokens=2.5,
+        cost_per_million_output_tokens=10.0,
+        cost_per_million_caching_input_tokens=1.25,
+        cost_per_million_caching_hit_tokens=0.3,
+    ),
     "gpt-4o-mini": ModelCosts(
         cost_per_million_input_tokens=0.15,
         cost_per_million_output_tokens=0.6,
         cost_per_million_caching_input_tokens=0.0,
         cost_per_million_caching_hit_tokens=0.075,
+    ),
+    "gpt-4-turbo": ModelCosts(
+        cost_per_million_input_tokens=10.0,
+        cost_per_million_output_tokens=30.0,
+        cost_per_million_caching_input_tokens=0.0,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
+    "gpt-4": ModelCosts(
+        cost_per_million_input_tokens=30.0,
+        cost_per_million_output_tokens=60.0,
+        cost_per_million_caching_input_tokens=0.0,
+        cost_per_million_caching_hit_tokens=0.0,
     ),
     "o3-mini-2025-01-31": ModelCosts(
         cost_per_million_input_tokens=1.1,
@@ -52,11 +94,29 @@ DEFAULT_COSTS: Dict[str, ModelCosts] = {
         cost_per_million_caching_input_tokens=0.0,
         cost_per_million_caching_hit_tokens=0.55,
     ),
+    "o4-mini": ModelCosts(
+        cost_per_million_input_tokens=0.55,
+        cost_per_million_output_tokens=3.5,
+        cost_per_million_caching_input_tokens=0.0,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
     # Google Gemini Models
+    "gemini-2.0-flash-exp": ModelCosts(
+        cost_per_million_input_tokens=0.0,
+        cost_per_million_output_tokens=0.0,
+        cost_per_million_caching_input_tokens=0.0,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
     "gemini-1.5-flash": ModelCosts(
         cost_per_million_input_tokens=0.075,
         cost_per_million_output_tokens=0.30,
         cost_per_million_caching_input_tokens=0.01875,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
+    "gemini-1.5-flash-8b": ModelCosts(
+        cost_per_million_input_tokens=0.0375,
+        cost_per_million_output_tokens=0.15,
+        cost_per_million_caching_input_tokens=0.01,
         cost_per_million_caching_hit_tokens=0.0,
     ),
     "gemini-2.0-flash-lite": ModelCosts(
@@ -87,6 +147,32 @@ DEFAULT_COSTS: Dict[str, ModelCosts] = {
         cost_per_million_input_tokens=1.25,
         cost_per_million_output_tokens=10.0,
         cost_per_million_caching_input_tokens=0.3125,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
+    # Mistral Models
+    "mistral-large-latest": ModelCosts(
+        cost_per_million_input_tokens=2.0,
+        cost_per_million_output_tokens=6.0,
+        cost_per_million_caching_input_tokens=0.0,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
+    "mistral-small-latest": ModelCosts(
+        cost_per_million_input_tokens=0.2,
+        cost_per_million_output_tokens=0.6,
+        cost_per_million_caching_input_tokens=0.0,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
+    # Cohere Models
+    "command-r-plus": ModelCosts(
+        cost_per_million_input_tokens=3.0,
+        cost_per_million_output_tokens=15.0,
+        cost_per_million_caching_input_tokens=0.0,
+        cost_per_million_caching_hit_tokens=0.0,
+    ),
+    "command-r": ModelCosts(
+        cost_per_million_input_tokens=0.5,
+        cost_per_million_output_tokens=1.5,
+        cost_per_million_caching_input_tokens=0.0,
         cost_per_million_caching_hit_tokens=0.0,
     ),
 }
