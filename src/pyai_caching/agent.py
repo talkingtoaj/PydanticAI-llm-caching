@@ -33,9 +33,35 @@ class CachedResult:
     """
     def __init__(self, output: Any, usage: Any, model: str, cost: float):
         self.output = output
-        self._usage = usage
+        # Convert usage to a simple dict to avoid deprecation warnings when unpickling
+        self._usage = self._convert_usage_to_dict(usage)
         self.model = model
         self.cost = cost
+        
+    def _convert_usage_to_dict(self, usage: Any) -> Dict[str, Any]:
+        """Convert usage object to a dictionary to avoid deprecation warnings."""
+        if hasattr(usage, '__dict__'):
+            return usage.__dict__.copy()
+        elif hasattr(usage, 'input_tokens') and hasattr(usage, 'output_tokens'):
+            # Use new field names first
+            return {
+                'input_tokens': getattr(usage, 'input_tokens', 0),
+                'output_tokens': getattr(usage, 'output_tokens', 0),
+                'details': getattr(usage, 'details', None)
+            }
+        elif hasattr(usage, 'request_tokens') and hasattr(usage, 'response_tokens'):
+            # Fallback to deprecated field names for backward compatibility
+            return {
+                'request_tokens': getattr(usage, 'request_tokens', 0),
+                'response_tokens': getattr(usage, 'response_tokens', 0),
+                'details': getattr(usage, 'details', None)
+            }
+        else:
+            # Fallback: try to convert to dict if it's a simple object
+            try:
+                return dict(usage) if hasattr(usage, 'items') else {'raw': str(usage)}
+            except:
+                return {'raw': str(usage)}
         
     def usage(self) -> Any:
         """Get usage data."""

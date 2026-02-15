@@ -88,6 +88,12 @@ DEFAULT_COSTS: Dict[str, ModelCosts] = {
         cost_per_million_caching_input_tokens=0.0,
         cost_per_million_caching_hit_tokens=0.0,
     ),
+    "gpt-5-nano": ModelCosts(
+        cost_per_million_input_tokens=0.05,
+        cost_per_million_output_tokens=0.4,
+        cost_per_million_caching_input_tokens=0.005,
+        cost_per_million_caching_hit_tokens=0.005,
+    ),
     "o3-mini-2025-01-31": ModelCosts(
         cost_per_million_input_tokens=1.1,
         cost_per_million_output_tokens=4.4,
@@ -136,6 +142,18 @@ DEFAULT_COSTS: Dict[str, ModelCosts] = {
         cost_per_million_output_tokens=0.60,
         cost_per_million_caching_input_tokens=0.0375,
         cost_per_million_caching_hit_tokens=0.0,
+    ),
+    "gemini-2.5-flash": ModelCosts(
+        cost_per_million_input_tokens=0.3,
+        cost_per_million_output_tokens=2.5,
+        cost_per_million_caching_input_tokens=0.075,
+        cost_per_million_caching_hit_tokens=0.075,
+    ),
+    "gemini-2.5-flash-lite": ModelCosts(
+        cost_per_million_input_tokens=0.1,
+        cost_per_million_output_tokens=0.4,
+        cost_per_million_caching_input_tokens=0.025,
+        cost_per_million_caching_hit_tokens=0.025,
     ),
     "gemini-2.5-pro-preview": ModelCosts(
         cost_per_million_input_tokens=1.25,
@@ -209,12 +227,30 @@ def get_model_costs(
 
 def get_token_counts(usage: Any) -> TokenCounts:
     """Get all token counts from usage data, separating regular and cached tokens."""
-    # Get total token counts
-    total_input = getattr(usage, "request_tokens", 0) or 0
-    total_output = getattr(usage, "response_tokens", 0) or 0
+    # Handle dict (e.g. from CachedResult.usage() after unpickling)
+    if isinstance(usage, dict):
+        total_input = (
+            usage.get("input_tokens", 0) or usage.get("request_tokens", 0) or 0
+        )
+        total_output = (
+            usage.get("output_tokens", 0) or usage.get("response_tokens", 0) or 0
+        )
+        details = usage.get("details") or {}
+    else:
+        # Try new field names first, fallback to deprecated ones
+        total_input = (
+            getattr(usage, "input_tokens", 0) or 0
+            or getattr(usage, "request_tokens", 0)
+            or 0
+        )
+        total_output = (
+            getattr(usage, "output_tokens", 0) or 0
+            or getattr(usage, "response_tokens", 0)
+            or 0
+        )
+        details = getattr(usage, "details", None) or {}
 
     # Get cached tokens from details
-    details = getattr(usage, "details", None) or {}
     cached_input = details.get("cached_input_tokens", 0)
     cached_output = details.get("cached_output_tokens", 0)
 

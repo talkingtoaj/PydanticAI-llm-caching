@@ -41,8 +41,6 @@ async def test_caching_with_live_agent():
     
     # Get Redis URL from environment
     redis_url = os.getenv("LLM_CACHE_REDIS_URL")
-    if not redis_url:
-        pytest.skip("Redis URL not configured in environment")
     
     # Create second agent instance
     agent2 = create_random_letter_agent()
@@ -56,7 +54,7 @@ async def test_caching_with_live_agent():
         redis_url=redis_url
     )
     
-    print(f"\nFirst call result: {result1}")
+    print(f"\nFirst call result: {result1.output}")
     
     # Second call with different agent instance but same prompt should use cache
     result2 = await cached_agent_run(
@@ -67,7 +65,7 @@ async def test_caching_with_live_agent():
         redis_url=redis_url
     )
     
-    print(f"Second call result: {result2}")
+    print(f"Second call result: {result2.output}")
     
     # Results should be identical since second call used cache
     assert result1.output == result2.output, "Cache miss: got different results for same prompt"
@@ -81,7 +79,7 @@ async def test_caching_with_live_agent():
         redis_url=redis_url
     )
     
-    print(f"Different prompt result: {result3}")
+    print(f"Different prompt result: {result3.output}")
     
     # Results should be different since it's a new API call with high temperature
     assert result1.output != result3.output, "Expected different results for different prompt" 
