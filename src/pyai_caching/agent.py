@@ -8,7 +8,7 @@ from pydantic_ai import Agent
 from pydantic_ai.exceptions import UsageLimitExceeded
 import logging
 from .types import ExpenseRecorder, noop_expense_recorder
-from .config import get_redis_client
+from .config import get_redis_client, get_async_redis_client
 from .costs import ModelCosts, calculate_cost
 from .exceptions import ConnectionError
 
@@ -110,8 +110,10 @@ async def cached_agent_run(
     expense_recorder: ExpenseRecorder = noop_expense_recorder,
     redis_url: Optional[str] = None,
     custom_costs: Optional[Dict[str, ModelCosts]] = None,
-    skip_cache: bool = False, # Can be used to utilize other uses of this wrapper without caching
+    skip_cache: bool = False,
     retry_config: Optional[Dict[str, Any]] = None,
+    use_async: bool = False,
+    use_lock: bool = True,
     **kwargs: Any
 ) -> Any:
     """Run an agent with Redis caching and rate limit handling.
@@ -132,6 +134,8 @@ async def cached_agent_run(
         redis_url: Optional Redis URL (defaults to LLM_CACHE_REDIS_URL env var)
         custom_costs: Optional dictionary of custom costs per model
         retry_config: Optional retry configuration (defaults to DEFAULT_RETRY_CONFIG)
+        use_async: Use async Redis client (default: False)
+        use_lock: Use distributed locking to prevent thundering herd (default: True)
         **kwargs: Additional arguments passed directly to agent.run
         
     Returns:
@@ -147,21 +151,25 @@ async def cached_agent_run(
     model_name = _get_model_name(agent)
 
     if not skip_cache:
-        redis_client = get_redis_client(redis_url)
+        if use_async:
+            redis_client = await get_async_redis_client(redis_url)
+        else:
+            redis_client = get_redis_client(redis_url)
         log.debug(f"Using Redis client with TTL: {ttl} seconds")
 
-        # Try to get from cache
         cache_key = create_cache_key(agent, prompt, **kwargs)
-        cached_result = None # Initialize to None
+        cached_result = None
         try:
-            cached_result = redis_client.get(cache_key)
+            if use_async:
+                cached_result = await redis_client.get(cache_key)
+            else:
+                cached_result = redis_client.get(cache_key)
             if cached_result:
                 log.debug(f"Cache hit for key: {cache_key}")
             else:
                 log.debug(f"Cache miss for key: {cache_key}")
         except Exception as e:
             log.warning(f"Error getting cache key '{cache_key}' from Redis: {e}")
-            # Treat as cache miss, proceed to agent run
             
         if cached_result:
             try:
@@ -174,6 +182,45 @@ async def cached_agent_run(
 
         # Not in cache, run the agent with exponential backoff
         log.debug(f"Cache miss for key: {cache_key}")
+
+        # Try to acquire lock to prevent thundering herd
+        lock_key = f"lock:{cache_key}"
+        lock_acquired = False
+
+        if use_lock:
+            try:
+                if use_async:
+                    lock_acquired = await redis_client.set(
+                        lock_key, "1", nx=True, ex=30
+                    )
+                else:
+                    lock_acquired = redis_client.set(lock_key, "1", nx=True, ex=30)
+
+                if not lock_acquired:
+                    # Another process is computing, wait and retry cache read
+                    log.debug(f"Lock not acquired for key: {lock_key}, waiting for result...")
+                    await asyncio.sleep(1.0)
+
+                    # Try to get from cache again
+                    try:
+                        if use_async:
+                            cached_result = await redis_client.get(cache_key)
+                        else:
+                            cached_result = redis_client.get(cache_key)
+
+                        if cached_result:
+                            result = pickle.loads(bytes(cached_result))
+                            await expense_recorder(model_name, task_name, 0)
+                            return result
+                    except Exception as e:
+                        log.warning(f"Error getting cache after lock wait: {e}")
+
+                    # If still no result, we'll proceed to compute anyway
+                    # (lock might have expired or be stale)
+            except Exception as e:
+                log.warning(f"Error acquiring lock: {e}")
+                # Proceed without lock if lock acquisition fails
+
     wait_time = initial_wait
     last_error = None
     
@@ -190,14 +237,27 @@ async def cached_agent_run(
             await expense_recorder(model_name, task_name, cost)
 
             if not skip_cache:
-                # Create a cacheable version of the result
                 cacheable_result = CachedResult(
                     output=result.output,
                     usage=result.usage(),
                     model=model_name,
                     cost=cost
                 )
-                redis_client.set(cache_key, pickle.dumps(cacheable_result), ex=ttl)
+                if use_async:
+                    await redis_client.set(cache_key, pickle.dumps(cacheable_result), ex=ttl)
+                else:
+                    redis_client.set(cache_key, pickle.dumps(cacheable_result), ex=ttl)
+
+                # Release the lock after caching
+                if use_lock and lock_acquired:
+                    try:
+                        if use_async:
+                            await redis_client.delete(lock_key)
+                        else:
+                            redis_client.delete(lock_key)
+                    except Exception as e:
+                        log.warning(f"Error releasing lock: {e}")
+
             return result
 
         except UsageLimitExceeded as e:
@@ -236,6 +296,8 @@ def cached_agent_run_sync(
     prompt: str,
     task_name: str,
     *args: Any,
+    use_async: bool = False,
+    use_lock: bool = True,
     **kwargs: Any
 ) -> Any:
     """Synchronous version of cached_agent_run.
@@ -243,11 +305,16 @@ def cached_agent_run_sync(
     This is a convenience wrapper that runs cached_agent_run in a new event loop.
     It accepts the same arguments and provides the same functionality, always returning
     the complete result object from the agent run.
+
+    Note: The use_async parameter is ignored in the sync wrapper. The sync wrapper
+    always uses the synchronous Redis client for consistency.
     
     Args:
         agent: The PydanticAI agent to run
         prompt: The prompt to send
         task_name: Name of the task for expense tracking
+        use_async: Ignored in sync wrapper (included for API consistency)
+        use_lock: Use distributed locking (default: True)
         *args: Additional positional arguments passed to cached_agent_run
         **kwargs: Additional keyword arguments passed to cached_agent_run, including:
                  - message_history: List of messages providing conversation context
@@ -271,4 +338,10 @@ def cached_agent_run_sync(
         ConfigurationError: If Redis URL is not configured
         ValueError: If model costs are not found or prompt is empty
     """
-    return asyncio.run(cached_agent_run(agent, prompt, task_name, *args, **kwargs)) 
+    return asyncio.run(cached_agent_run(
+        agent, prompt, task_name,
+        use_async=False,
+        use_lock=use_lock,
+        *args,
+        **kwargs
+    )) 

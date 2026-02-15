@@ -1,7 +1,7 @@
 """Configuration settings for pyai-caching."""
 
 import os
-from typing import Optional
+from typing import Optional, Union
 from urllib.parse import urlparse
 
 from .exceptions import ConfigurationError
@@ -30,8 +30,62 @@ def get_redis_url() -> str:
 
 
 def get_redis_client(url: Optional[str] = None) -> "redis.Redis":
-    """Get Redis client from URL."""
+    """Get synchronous Redis client from URL."""
     import redis
 
     redis_url = url or get_redis_url()
     return redis.from_url(redis_url)
+
+
+async def get_async_redis_client(url: Optional[str] = None) -> "redis.asyncio.Redis":
+    """Get asynchronous Redis client from URL."""
+    import redis.asyncio
+
+    redis_url = url or get_redis_url()
+    return await redis.asyncio.from_url(redis_url)
+
+
+def clear_cache(url: Optional[str] = None) -> int:
+    """Clear all cached entries from Redis.
+    
+    Note: This will clear the entire Redis database if using the default
+    database number. Use with caution.
+    
+    Args:
+        url: Optional Redis URL (defaults to LLM_CACHE_REDIS_URL env var)
+        
+    Returns:
+        Number of keys deleted
+        
+    Raises:
+        ConfigurationError: If Redis URL is not configured
+    """
+    client = get_redis_client(url)
+    try:
+        return client.dbsize()
+    finally:
+        client.flushdb()
+
+
+async def clear_cache_async(url: Optional[str] = None) -> int:
+    """Clear all cached entries from Redis (async version).
+    
+    Note: This will clear the entire Redis database if using the default
+    database number. Use with caution.
+    
+    Args:
+        url: Optional Redis URL (defaults to LLM_CACHE_REDIS_URL env var)
+        
+    Returns:
+        Number of keys deleted
+        
+    Raises:
+        ConfigurationError: If Redis URL is not configured
+    """
+    client = await get_async_redis_client(url)
+    try:
+        count = await client.dbsize()
+        await client.flushdb()
+        return count
+    finally:
+        await client.aclose()
