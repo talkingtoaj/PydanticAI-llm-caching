@@ -175,11 +175,11 @@ async def test_cached_agent_run_custom_ttl(test_agent: Agent, mock_expense_recor
            ttl=60
         )
         
-        # Assert Redis client was called with correct TTL
-        mock_client.set.assert_called_once()
-        # Check the 'ex' keyword argument passed to set()
-        args, kwargs = mock_client.set.call_args
-        assert kwargs.get('ex') == 60
+        # set() is called twice: once for lock (ex=30), once for cache (ex=ttl)
+        assert mock_client.set.call_count == 2
+        # Find the cache write (the call with ex=60) and verify TTL
+        cache_calls = [c for c in mock_client.set.call_args_list if c[1].get("ex") == 60]
+        assert len(cache_calls) == 1, "Expected exactly one set() with ex=60 (cache TTL)"
 
 @pytest.mark.asyncio
 async def test_cached_agent_run_corrupted_cache(test_agent: Agent, mock_expense_recorder: AsyncMock, custom_costs, redis_url):
