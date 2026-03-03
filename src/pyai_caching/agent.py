@@ -1,6 +1,8 @@
 """Main caching functionality for LLM agents."""
 
 import asyncio
+import hashlib
+import json
 import pickle
 import random
 from typing import Any, Optional, Dict
@@ -85,6 +87,27 @@ def _get_model_name(agent: Agent[Any, Any]) -> str:
             return model_obj.__class__.__name__
     return "unknown"
 
+def _normalize_for_cache(value: Any) -> Any:
+    """Convert values to deterministic, JSON-serializable structures."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, (list, tuple)):
+        return [_normalize_for_cache(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _normalize_for_cache(val) for key, val in value.items()}
+    return repr(value)
+
+
+def _extract_system_prompt(agent: Agent[Any, Any]) -> str:
+    """Best-effort extraction of system prompt text for cache identity."""
+    system_prompt = getattr(agent, "system_prompt", None)
+    if isinstance(system_prompt, str):
+        return system_prompt
+    if system_prompt is not None:
+        return repr(system_prompt)
+    return ""
+
+
 def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
     """Create a cache key from the agent, prompt, and output model schema.
     
@@ -101,29 +124,26 @@ def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
     Returns:
         str: A unique cache key incorporating all elements that could affect the response
     """
-    # Include relevant kwargs in the cache key if they affect the response
-    key_parts = [
-        str(agent),
-        prompt
-    ]
-    
-    # Include message history in cache key if present
-    if "message_history" in kwargs and kwargs["message_history"]:
-        # Convert message history to a string representation
-        history_str = "|".join(str(msg) for msg in kwargs["message_history"])
-        key_parts.append(history_str)
-    
-    # Include output model schema in cache key
+    output_schema = None
     if hasattr(agent, 'output_type') and agent.output_type:
         try:
-            schema = agent.output_type.model_json_schema()
-            # Convert schema to a stable string representation
-            schema_str = str(sorted(schema.items()))
-            key_parts.append(schema_str)
+            output_schema = agent.output_type.model_json_schema()
         except Exception as e:
             log.warning(f"Failed to get output model schema: {e}")
-    
-    return "|".join(key_parts)
+
+    payload = {
+        "version": 2,
+        "model_name": _get_model_name(agent),
+        "agent_name": getattr(agent, "name", None),
+        "system_prompt": _extract_system_prompt(agent),
+        "prompt": prompt,
+        "message_history": [repr(msg) for msg in (kwargs.get("message_history") or [])],
+        "run_kwargs": _normalize_for_cache(kwargs),
+        "output_schema": output_schema,
+    }
+    canonical_payload = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    digest = hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
+    return f"pyai-cache:v2:{digest}"
 
 async def cached_agent_run(
     agent: Agent[Any, Any],

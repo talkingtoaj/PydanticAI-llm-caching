@@ -269,9 +269,20 @@ async def test_cache_key_with_different_output_models(test_agent: Agent, mock_ex
     
     # Keys should be different due to different output model schemas
     assert key1 != key2, "Cache keys should be different for different output model schemas"
-    
-    # Verify the schema is included in the key
-    assert "field2" in key1, "First model's schema should be in key1"
-    assert "field3" in key2, "Second model's schema should be in key2"
-    assert "field2" not in key2, "First model's schema should not be in key2"
-    assert "field3" not in key1, "Second model's schema should not be in key1"
+
+    # Hashed key should not expose raw schema details
+    assert "field2" not in key1
+    assert "field3" not in key2
+
+
+def test_cache_key_is_namespaced_digest_and_hides_prompt(test_agent: Agent):
+    from pyai_caching.agent import create_cache_key
+
+    prompt = "very-sensitive-user-input"
+    key = create_cache_key(test_agent, prompt)
+
+    assert key.startswith("pyai-cache:v2:")
+    digest = key.split(":")[-1]
+    assert len(digest) == 64
+    assert all(ch in "0123456789abcdef" for ch in digest)
+    assert prompt not in key
