@@ -45,6 +45,12 @@ DEFAULT_COSTS: Dict[str, ModelCosts] = {
         cost_per_million_caching_input_tokens=1.0,
         cost_per_million_caching_hit_tokens=0.08,
     ),
+    "claude-haiku-4-5": ModelCosts(
+        cost_per_million_input_tokens=1.0,
+        cost_per_million_output_tokens=5.0,
+        cost_per_million_caching_input_tokens=1.25,
+        cost_per_million_caching_hit_tokens=0.1,
+    ),
     "claude-3-opus-latest": ModelCosts(
         cost_per_million_input_tokens=15.0,
         cost_per_million_output_tokens=75.0,
@@ -272,7 +278,7 @@ def calculate_cost(
     """Calculate the cost of an LLM request using provider-specific token rates.
 
     Args:
-        model_name: The model identifier (e.g. "claude-3-5-haiku-latest")
+        model_name: The model identifier (e.g. "claude-haiku-4-5")
         result: The PydanticAI agent result containing usage information
         custom_costs: Optional dictionary of custom costs per model
 

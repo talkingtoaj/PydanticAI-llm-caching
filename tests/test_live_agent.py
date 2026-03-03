@@ -13,7 +13,7 @@ load_dotenv()
 def create_random_letter_agent() -> Agent[None, str]:
     """Create a simple agent that returns 5 random letters."""
     return Agent(
-        "anthropic:claude-3-5-haiku-latest",  # Using a fast, cheap model
+        "anthropic:claude-haiku-4-5",  # Using a fast, cheap model
         output_type=str,
         model_settings={"temperature": 1.0},  # Maximum temperature for randomness
         system_prompt=(
@@ -31,7 +31,7 @@ async def test_caching_with_live_agent():
     
     # Define custom costs for our model
     custom_costs = {
-        str(agent): ModelCosts(
+        "claude-haiku-4-5": ModelCosts(
             cost_per_million_input_tokens=0.8,
             cost_per_million_output_tokens=4.0,
             cost_per_million_caching_input_tokens=1.0,

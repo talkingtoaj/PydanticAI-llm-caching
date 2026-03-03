@@ -51,7 +51,7 @@ class UserProfile(BaseModel):
     interests: List[str]
 
 profiler_agent = Agent(
-    model="anthropic:claude-3-5-haiku-latest", 
+    model="anthropic:claude-haiku-4-5",
     output_type=UserProfile,
     name="profiler",
     system_prompt="You read transcripts and extract pertinent details for a profile record on a person."
