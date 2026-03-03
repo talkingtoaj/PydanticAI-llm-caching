@@ -32,7 +32,7 @@ class MockResultData(BaseModel):
 def mock_expense_recorder():
     return AsyncMock()
 
-MODEL_NAME = "claude-3-5-haiku-latest"
+MODEL_NAME = "claude-haiku-4-5"
 
 @pytest.fixture
 def custom_costs():
