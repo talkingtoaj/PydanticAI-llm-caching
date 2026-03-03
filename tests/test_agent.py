@@ -33,6 +33,7 @@ def mock_expense_recorder():
     return AsyncMock()
 
 MODEL_NAME = "claude-haiku-4-5"
+AGENT_MODEL_NAME = "anthropic:claude-haiku-4-5"
 
 @pytest.fixture
 def custom_costs():
@@ -55,7 +56,7 @@ def redis_url():
 def test_agent():
     """Create a test agent using a real model name, without mocking run."""
     agent = Agent(
-        model=MODEL_NAME, 
+        model=AGENT_MODEL_NAME,
         output_type=MockResultData,
         name="test_agent",
         system_prompt="You are a test agent that provides simple responses."
@@ -124,7 +125,7 @@ async def test_cached_agent_run_missing_redis_url():
         with pytest.raises(ConfigurationError) as exc_info:
             # Use the real model name here as well
             await cached_agent_run(
-                agent=Agent(model=MODEL_NAME),
+                agent=Agent(model=AGENT_MODEL_NAME),
                 prompt="test",
                 task_name="test"
             )

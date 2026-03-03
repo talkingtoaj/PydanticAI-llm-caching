@@ -6,7 +6,7 @@ import pytest
 import asyncio
 from pyai_caching import cached_agent_run, ModelCosts
 from pydantic_ai import Agent
-from test_agent import MockResultData, MODEL_NAME
+from test_agent import AGENT_MODEL_NAME, MockResultData, MODEL_NAME
 
 @pytest.fixture
 def redis_url():
@@ -17,7 +17,7 @@ def redis_url():
 def test_agent():
     """Create a real Claude agent for testing."""
     return Agent(
-        model=MODEL_NAME,
+        model=AGENT_MODEL_NAME,
         output_type=MockResultData,
         name="test_agent",
         system_prompt="You are a test agent. Always respond with a short message and a confidence score between 0 and 1."
