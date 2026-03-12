@@ -18,7 +18,7 @@ from .exceptions import (
 )
 from .types import ExpenseRecorder
 
-__version__ = "0.2.11"
+__version__ = "0.3.1"
 __all__ = [
     "cached_agent_run",
     "cached_agent_run_sync",
