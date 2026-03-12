@@ -7,6 +7,10 @@ on:
   pull_request: # Add trigger for pull requests
     branches: [ main ]
 
+# Opt into Node.js 24 for JavaScript actions (Node 20 deprecated on runners)
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   test:
     name: Run Tests on Python 3.11

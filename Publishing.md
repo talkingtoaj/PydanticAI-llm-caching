@@ -18,7 +18,8 @@ To push a new:
 
 - [ ] Create a git tag matching the version (e.g., git tag v0.1.1).
 `git tag v0.1.1`
-`git push origin v0.1.1`
 
 - [ ] Push the tag to GitHub (git push origin v0.1.1).
+`git push origin v0.1.1`
+
 - [ ] Sign the release on GitHub actions
