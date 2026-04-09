@@ -98,12 +98,56 @@ def _normalize_for_cache(value: Any) -> Any:
     return repr(value)
 
 
+def _function_identity(func: Any) -> str:
+    """Stable id for a registered prompt/tool function (for cache key material)."""
+    mod = getattr(func, "__module__", "?")
+    qual = getattr(func, "__qualname__", repr(func))
+    return f"{mod}.{qual}"
+
+
 def _extract_system_prompt(agent: Agent[Any, Any]) -> str:
-    """Best-effort extraction of system prompt text for cache identity."""
+    """Best-effort extraction of system prompt identity for cache key material.
+
+    PydanticAI stores constructor ``system_prompt=`` strings on ``_system_prompts``; the
+    public ``agent.system_prompt`` name is the decorator API (a method), not the text.
+    """
+    parts: list[str] = []
+
+    sp_tuple = getattr(agent, "_system_prompts", None)
+    if isinstance(sp_tuple, tuple) and sp_tuple:
+        parts.append("static:" + "\n".join(sp_tuple))
+
+    instructions = getattr(agent, "_instructions", None)
+    if isinstance(instructions, str) and instructions:
+        parts.append("instructions:" + instructions)
+
+    for attr in ("_instructions_functions", "_system_prompt_functions"):
+        runners = getattr(agent, attr, None) or []
+        if not isinstance(runners, list):
+            continue
+        for runner in runners:
+            fn = getattr(runner, "function", None)
+            if callable(fn):
+                dyn = getattr(runner, "dynamic", False)
+                parts.append(f"{attr}:{_function_identity(fn)}:dynamic={dyn}")
+
+    dyn_map = getattr(agent, "_system_prompt_dynamic_functions", None)
+    if isinstance(dyn_map, dict):
+        for name in sorted(dyn_map.keys()):
+            runner = dyn_map[name]
+            fn = getattr(runner, "function", None)
+            if callable(fn):
+                parts.append(
+                    f"_system_prompt_dynamic_functions:{name}:{_function_identity(fn)}"
+                )
+
+    if parts:
+        return "\n".join(parts)
+
     system_prompt = getattr(agent, "system_prompt", None)
     if isinstance(system_prompt, str):
         return system_prompt
-    if system_prompt is not None:
+    if system_prompt is not None and not callable(system_prompt):
         return repr(system_prompt)
     return ""
 
@@ -132,7 +176,7 @@ def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
             log.warning(f"Failed to get output model schema: {e}")
 
     payload = {
-        "version": 2,
+        "version": 3,
         "model_name": _get_model_name(agent),
         "agent_name": getattr(agent, "name", None),
         "system_prompt": _extract_system_prompt(agent),
@@ -143,7 +187,7 @@ def create_cache_key(agent: Agent[Any, Any], prompt: str, **kwargs: Any) -> str:
     }
     canonical_payload = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     digest = hashlib.sha256(canonical_payload.encode("utf-8")).hexdigest()
-    return f"pyai-cache:v2:{digest}"
+    return f"pyai-cache:v3:{digest}"
 
 async def cached_agent_run(
     agent: Agent[Any, Any],

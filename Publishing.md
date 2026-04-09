@@ -8,18 +8,19 @@ Approve the deployment to the pypi environment in the GitHub Actions run.
 
 
 
+## Shipping a new version
 
-To push a new:
-- [ ] Update the version in pyproject.toml (e.g., to 0.1.1 or 1.0.0).
-- [ ] Update the __version__ in src/pyai_caching/__init__.py
-- [ ] Commit the change.
-`git commit -m "Bump version to 0.1.1"`
-`git push`
+- [ ] Bump **`version`** in **`pyproject.toml`** (e.g. `0.4.0`).
+- [ ] Commit and push to `main` (or merge a PR that does the bump).
+  ```bash
+  git commit -am "Bump version to 0.4.0"
+  git push
+  ```
+- [ ] Create and push an annotated tag whose name matches the version with a **`v`** prefix:
+  ```bash
+  git tag v0.4.0
+  git push origin v0.4.0
+  ```
+  Tag pushes trigger the workflow that builds wheels, publishes to PyPI (after any required approval), and creates the GitHub Release (including Sigstore signatures for the artifacts in CI).
 
-- [ ] Create a git tag matching the version (e.g., git tag v0.1.1).
-`git tag v0.1.1`
-
-- [ ] Push the tag to GitHub (git push origin v0.1.1).
-`git push origin v0.1.1`
-
-- [ ] Sign the release on GitHub actions
+**Manual step in GitHub:** if the **`pypi`** environment is protected, open the Actions run for that tag and **approve** the deployment to PyPI when prompted. You do not sign releases by hand; signing and release creation run in the workflow.

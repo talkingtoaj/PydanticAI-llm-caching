@@ -1,4 +1,5 @@
 .env
+.venv/
 src/pyai_caching/__pycache__/*
 tests/__pycache__/*
 

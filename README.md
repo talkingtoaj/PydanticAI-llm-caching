@@ -239,6 +239,15 @@ except ValueError as e:
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+For local development, install [uv](https://docs.astral.sh/uv/), then:
+
+```bash
+uv sync
+uv run pre-commit install
+```
+
+Run the test suite with `uv run pytest`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow.
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
@@ -246,3 +255,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+### Running Tests
+```bash
+# All tests
+uv run pytest
+

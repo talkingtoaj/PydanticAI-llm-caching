@@ -10,19 +10,19 @@ Thank you for your interest in contributing to LLM Caching! This document provid
    cd pyai-caching
    ```
 
-2. Install Poetry if you haven't already:
+2. Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you have not already (for example on Linux or macOS):
    ```bash
-   curl -sSL https://install.python-poetry.org | python3 -
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
-3. Install dependencies:
+3. Install dependencies and the project into a local virtual environment:
    ```bash
-   poetry install
+   uv sync
    ```
 
 4. Install pre-commit hooks:
    ```bash
-   poetry run pre-commit install
+   uv run pre-commit install
    ```
 
 ## Development Workflow
@@ -38,12 +38,12 @@ Thank you for your interest in contributing to LLM Caching! This document provid
    - Use type hints
    - Add docstrings for public functions and classes
    - Follow PEP 8 guidelines
-   - Run `poetry run black .` to format code
-   - Run `poetry run ruff .` to check for issues
+   - Run `uv run black .` to format code
+   - Run `uv run ruff check .` to check for issues
 
 3. Add tests for your changes:
    - Add tests in the `tests/` directory
-   - Run tests with `poetry run pytest`
+   - Run tests with `uv run pytest`
    - Ensure test coverage is maintained
 
 4. Commit your changes:

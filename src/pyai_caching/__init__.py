@@ -2,6 +2,8 @@
 LLM Caching - Redis-based caching for LLM agents with cost tracking
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from .agent import cached_agent_run, cached_agent_run_sync
 from .config import (
     clear_cache,
@@ -18,8 +20,15 @@ from .exceptions import (
 )
 from .types import ExpenseRecorder
 
-__version__ = "0.3.1"
+_DIST_NAME = "pyai-caching"
+
+try:
+    __version__ = version(_DIST_NAME)
+except PackageNotFoundError:  # pragma: no cover
+    __version__ = "0.0.0+unknown"
+
 __all__ = [
+    "__version__",
     "cached_agent_run",
     "cached_agent_run_sync",
     "get_redis_client",

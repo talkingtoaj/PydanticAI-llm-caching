@@ -276,13 +276,36 @@ async def test_cache_key_with_different_output_models(test_agent: Agent, mock_ex
     assert "field3" not in key2
 
 
+def test_cache_key_differs_when_system_prompt_differs():
+    """Static system_prompt text must affect the cache key (PydanticAI stores it on _system_prompts)."""
+    from pyai_caching.agent import create_cache_key
+
+    class Out(BaseModel):
+        a: str
+
+    a1 = Agent(
+        AGENT_MODEL_NAME,
+        output_type=Out,
+        system_prompt="You are helpful A.",
+        defer_model_check=True,
+    )
+    a2 = Agent(
+        AGENT_MODEL_NAME,
+        output_type=Out,
+        system_prompt="You are helpful B.",
+        defer_model_check=True,
+    )
+    prompt = "same user prompt"
+    assert create_cache_key(a1, prompt) != create_cache_key(a2, prompt)
+
+
 def test_cache_key_is_namespaced_digest_and_hides_prompt(test_agent: Agent):
     from pyai_caching.agent import create_cache_key
 
     prompt = "very-sensitive-user-input"
     key = create_cache_key(test_agent, prompt)
 
-    assert key.startswith("pyai-cache:v2:")
+    assert key.startswith("pyai-cache:v3:")
     digest = key.split(":")[-1]
     assert len(digest) == 64
     assert all(ch in "0123456789abcdef" for ch in digest)
