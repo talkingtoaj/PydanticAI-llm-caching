@@ -325,11 +325,17 @@ async def cached_agent_run(
             # Calculate cost from usage data
             cost = calculate_cost(model_name, result, custom_costs)
             await expense_recorder(model_name, task_name, cost)
+            
+            if callable(getattr(result, "usage", None)):
+                # for pydantic-ai < 2.22
+                usage = result.usage()
+            else:
+                usage = result.usage
 
             if not skip_cache:
                 cacheable_result = CachedResult(
                     output=result.output,
-                    usage=result.usage(),
+                    usage=usage,
                     model=model_name,
                     cost=cost
                 )

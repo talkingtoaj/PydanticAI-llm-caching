@@ -290,7 +290,12 @@ def calculate_cost(
     """
     costs = get_model_costs(model_name, custom_costs)
 
-    tokens = get_token_counts(result.usage())
+    if callable(getattr(result, "usage", None)):
+        # for pydantic-ai < 2.22
+        tokens = get_token_counts(result.usage())
+    else:
+        tokens = get_token_counts(result.usage)
+
 
     return (
         # Regular token costs
