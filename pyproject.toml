@@ -1,6 +1,6 @@
 [project]
 name = "pyai-caching"
-version = "0.4"
+version = "0.4.1"
 description = "Redis-based caching for Pydantic AI LLM agents with cost tracking"
 readme = "README.md"
 requires-python = ">=3.10"
